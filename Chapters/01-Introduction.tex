@@ -1,62 +1,234 @@
-\chapter[Introduction to the Template: Motivation and First Steps]{Introduction to the Template Motivation and First Steps}
+\chapter[Introduction]{Introduction}
 \label{cp:introduction}
 
-{
-\parindent0pt
+% Writing guidance: This chapter follows a funnel structure — broad context (supply
+% chain risk is a growing threat), narrowing to the specific gap (existing SBOM tools
+% treat inventories as flat lists, not graphs amenable to structural analysis), then
+% zooming into what was built (SBOM Lens) and what was found. Target length: 7–10 pages.
+% Technical terms (CycloneDX, CVSS, articulation points) should be named here but NOT
+% explained — forward-reference to Chapter 2 for definitions.
 
-\textit{Author: José Areia}
-
-\textit{Current Version: 2.2.13}
-
-\textit{License: \LaTeX~Project Public License v1.3c}
-
-\textit{Official Repository: \href{https://github.com/joseareia/ipleiria-thesis}{GitHub Repository}}
-
-\vspace{.935em}
-
-Welcome to the \textcolor{maincolor}{\textit{IPLeiria Thesis}} template! Thank you for choosing it for your dissertation, report, or project. This template reflects many hours of development, and I hope you enjoy using it as much as I did creating it. This chapter introduces its purpose and helps you get started. See \autoref{cp:user-guide} for a detailed guide, and \autoref{cp:latex-tutorial} for a brief \LaTeX~tutorial to maximise its use.
-}
 
 \section{Motivation}
-I've been using \LaTeX~since 2020 for a wide range of purposes. Over time, I've reviewed over a hundred templates, and there's always something missing. \textit{Always}. Powerful templates---\textit{i.e.}, highly customisable with many options---are often poorly organised. Well-organised ones usually lack flexibility. Some even compile with errors and warnings. Most importantly, many aren't user-friendly. So, I created my own template for theses and reports, tailored to the Polytechnic University of Leiria. My goals were: \(i)\) clear and structured file organisation, \(ii)\) a clean, professional, and attractive design, \(iii)\) high customisability, and \(iv)\) ease of use, especially for beginners.
+\label{sec:motivation}
+
+% Key point 1: Modern software is built on third-party open-source dependencies.
+%   The scale is significant — cite a statistic from the Synopsys OSSRA report or
+%   similar (e.g., "X% of commercial codebases contain open-source components").
+%   Frame the software supply chain as the aggregate of all these dependencies and
+%   the trust relationships between them.
+
+% Key point 2: Supply chain attacks exploit that trust. Three attacks establish the stakes:
+%   - SolarWinds SUNBURST (December 2020, CISA Alert AA20-352A): attackers compromised
+%     the build pipeline of a trusted vendor; malicious update propagated to ~18,000
+%     organisations including US government agencies. Demonstrates cascading failure
+%     through vendor trust relationships.
+%   - log4shell (CVE-2021-44228, December 2021): a critical flaw in the Apache Log4j
+%     library — a transitive dependency in millions of Java applications — exposed an
+%     estimated 3 billion devices. Demonstrates how a single indirect dependency can
+%     compromise an entire ecosystem.
+%   - xz-utils backdoor (CVE-2024-3094, CVSS 10.0, March 2024): a two-year social
+%     engineering campaign inserted a backdoor into a core Linux compression utility,
+%     narrowly avoided widespread SSH compromise. Demonstrates patience and stealth
+%     in supply chain attacks.
+
+% Key point 3: Policy response — the SBOM mandate. US Executive Order 14028
+%   (May 2021) mandated that software sold to the US federal government must be
+%   accompanied by a Software Bill of Materials (SBOM) — a machine-readable inventory
+%   of all components and dependencies. EO 14028 Section 10(j) provides the authoritative
+%   definition. EO 14144 (January 2025) reinforced and extended these requirements.
+%   NIST and CISA have published SBOM minimum elements guidance. Cite: \citep{EO14028}.
+
+% Key point 4: The transparency gap. Despite SBOM adoption, existing analysis tools
+%   (Dependency-Track, grype, syft, Sunshine/CycloneDX) treat SBOMs as flat component
+%   inventories. They answer "what components are present?" and "do any have known CVEs?"
+%   but do not model the dependency graph structure. They cannot identify which components
+%   are structural bottlenecks, how vulnerabilities would propagate through the dependency
+%   network, or how to prioritise remediation based on graph position.
+
+% Key point 5: The opportunity — graph theory and network science. A dependency graph
+%   is a directed graph by nature. Network science provides a rich toolkit for analysing
+%   such graphs: articulation points reveal single points of failure; k-core decomposition
+%   identifies the most deeply embedded components; spectral analysis and epidemic models
+%   estimate vulnerability propagation potential. These techniques are mature in other
+%   domains (biological networks, social networks, internet topology) but have not been
+%   systematically applied to SBOM dependency graphs.
+
+% Key point 6: Thesis statement (one paragraph, written directly — not a comment).
+This dissertation presents SBOM Lens, a graph-based framework for software supply chain risk assessment. The system ingests Software Bills of Materials in CycloneDX format and constructs a directed dependency graph, over which network science techniques are applied to surface structural vulnerabilities not visible through flat-inventory analysis. The design, implementation, and evaluation of SBOM Lens are described in \autoref{cp:system-design}, \autoref{cp:vuln-analysis}, and \autoref{cp:network-sci}, respectively, with empirical results presented in \autoref{cp:evaluation}.
 
 
-\section{Getting Started}
-To start using this template, you first need to know how to use \LaTeX. For this, please refer to \autoref{cp:latex-tutorial}. Once you are familiar with \LaTeX, you will need to either install it locally or use an online \LaTeX~editor.
+\section{Problem Statement}
+\label{sec:problem-statement}
 
-If you prefer an online editor, I highly recommend \href{https://www.overleaf.com/}{Overleaf}. While Overleaf offers a paid subscription for extended compilation time, this template is specifically designed to compile within the limits of the free subscription plan. To use the template in Overleaf, just refer to \href{https://www.overleaf.com/latex/templates/unofficial-polytechnic-university-of-leiria-estg-thesis-slash-report-template/tqgbrncfhwgt}{official template page} and click \textit{Use as Template}. But if you prefer to use a different version of it (which I do not recommend), you can do the following:
+% Key point 1: Define the specific problem precisely. Existing SBOM tooling has two
+%   limitations: (a) vulnerability matching is done component-by-component without
+%   considering the graph position of a vulnerable component — a vulnerability in a
+%   deeply embedded, highly connected node is treated identically to one in a leaf node;
+%   (b) no structural risk metrics are computed — concepts like articulation points,
+%   k-core depth, or community structure are absent from existing tools.
 
-\begin{enumerate}[font=\itshape]
-    \setlength{\itemsep}{.375em}
-    \item \textit{Download the \href{https://github.com/joseareia/ipleiria-thesis/releases}{desired version} from the GitHub repository as a Zip file.}
-    \item \textit{Login to your Overleaf account.}
-    \item \textit{In your Project area, click in the menu and then: New Project \(\to\) Upload Project.}
-    \item \textit{Upload the Zip file.}
-    \item \textit{Let Overleaf compile the document.}
-\end{enumerate}
+% Key point 2: Consequence of the gap. Without graph-based analysis, security teams
+%   must manually triage hundreds of CVEs from a flat list, with no way to prioritise
+%   based on structural impact. A CVE in a shared transitive dependency used by 80% of
+%   the graph's components is not distinguishable from one in an isolated leaf component.
 
-If you choose to use a local editor, you must first install \LaTeX~on your machine. For this, there are several options, but I personally recommend either \href{https://www.tug.org/texlive/}{TeX-Live} or \href{https://miktex.org/}{MikTeX}. After installing \LaTeX, you will need to select an editor for writing and editing your documents. To help with this decision, I suggest checking out this helpful \href{https://tex.stackexchange.com/questions/339/latex-editors-ides}{post}, which provides a comprehensive overview of various editors you can use. Once \LaTeX~and your editor are set up, simply clone or download the \href{https://github.com/joseareia/ipleiria-thesis/releases}{latest} version of the template from GitHub and start using it!
+% Key point 3: The research gap statement. Cite the ACM landscape study (2025) or
+%   similar to ground the claim that graph-based SBOM analysis is absent from the
+%   current tool ecosystem. Note GUAC (Graph for Understanding Artifact Composition,
+%   OpenSSF 2024) as the closest related work — GUAC models provenance graphs across
+%   projects, but does not apply network science metrics for within-SBOM risk assessment.
+%   Forward-reference to \autoref{cp:related-work} for detailed comparison.
 
-\begin{block}[tip]
-In the official GitHub repository, you'll find a \href{https://github.com/joseareia/ipleiria-thesis/blob/master/Makefile}{Makefile} and a \href{https://github.com/joseareia/ipleiria-thesis/blob/master/.latexmkrc}{Latexmk configuration file}, either of which can be used to compile the project. The Makefile supports both \texttt{rubber} and \texttt{latexmk} as compilers, so you can choose the one that best suits your preferences.
-\end{block}
+% Key point 4: The proposed solution in one sentence. SBOM Lens fills this gap by
+%   constructing a per-SBOM directed dependency graph and applying a suite of network
+%   science algorithms to produce graph-level and node-level risk metrics. The research
+%   question is not "can this be done?" (the system exists) but "what does it reveal?"
+%   (the empirical evaluation in \autoref{cp:evaluation} answers this).
 
-\section{Getting Help}
-As a newcomer, you may encounter situations where you want to do something in \LaTeX~or with this template but aren't sure how. When questions arise, you have several options. First, you can read the wiki available in the \href{https://github.com/joseareia/ipleiria-thesis}{GitHub} repository for this template. Another great option is the \href{https://tex.stackexchange.com/}{TeX Stack Exchange}, an active community that can help with nearly any issue. Of course, Google is always a reliable resource. If all else fails, feel free to contact me directly with any questions about the template. You can reach me at \textit{\textcolor{blue}{\ul{jose.apareia@gmail.com}}}.
 
-\subsection{Issues, Feature Request and Suggestions}
-If, by any chance, you encounter a bug, have a suggestion, or would like to request a feature, you can submit them via the \textit{Issues} tab in the \href{https://github.com/joseareia/ipleiria-thesis}{GitHub} repository. Please be as descriptive as possible when reporting issues, and make sure to provide the appropriate labels to help me triage them effectively.
+\section{Research Objectives}
+\label{sec:objectives}
 
-For feature requests or suggestions, you can either follow the steps mentioned above or, if you prefer, you can implement the feature yourself and submit a pull request. Both pull requests and pushes trigger a \href{https://github.com/joseareia/ipleiria-thesis/actions/workflows/latex.yml}{GitHub Action} that will automatically compile the document. If the compilation fails, the pull request will be automatically rejected. Please keep this in mind and take care when submitting changes.
+% Writing guidance: Objectives are framed as design-and-analysis goals, not hypothesis
+% questions, because this is a tool/system thesis with a built artefact. Each objective
+% maps to one implementation or evaluation chapter — this alignment allows the Conclusion
+% to verify each was addressed.
 
-\subsection{In-Built Comments, Guidance Texts and Warnings}
-Within this document template, you may encounter informational text displaying the message ``Writing Guidance.'' These sections are provided solely as guidance to help users understand what content should be included in specific sections. They are not related to the \LaTeX~code itself within this template.
+% The following four objectives should be written as a numbered list (\begin{enumerate}):
 
-While navigating through the template, especially the configuration files, you will notice that everything is thoroughly commented. \LaTeX~can sometimes be difficult to understand without proper documentation for the packages we are working with. With that in mind, I have made an effort to comment on all the changes I’ve made. Occasionally, I may forget or deem it unnecessary to comment on simpler changes, but more advanced modifications are always accompanied by detailed comments.
+% Objective 1 — Graph construction pipeline (maps to Chapter 4: System Design):
+%   "To design and implement a directed dependency graph construction pipeline that
+%   ingests CycloneDX JSON SBOMs and produces an annotated dependency graph amenable
+%   to further analysis."
 
-Finally, regarding warnings: please take them into consideration when compiling the document. As you may have noticed, the template is designed to be free of warnings, so please strive to maintain this clean compilation.
+% Objective 2 — Vulnerability integration (maps to Chapter 5: Vulnerability Analysis):
+%   "To integrate multi-source vulnerability data (NVD, OSV, and GitHub Security
+%   Advisories) with full CVSS v3.1 base score computation and overlay the results
+%   on the dependency graph."
 
-\section{Important Notices}
-Although this template is specifically tailored for students from all six schools of the Polytechnic University of Leiria, you are welcome to use it if you are from a different institution. It is highly customisable and can be easily modified to suit the needs of other schools. If your school is interested in adopting this as the official template, please contact me first. 
+% Objective 3 — Network science algorithms (maps to Chapter 6: Network Science):
+%   "To apply network science algorithms — including articulation point detection,
+%   k-core decomposition, Louvain community detection, HITS hub/authority scoring,
+%   spectral radius computation, and an SIR-analogy epidemic propagation model —
+%   to quantify structural risk in software dependency graphs."
 
-If you decide to use this template, please consider acknowledging it in your work. To do so, simply cite it using \verb|\citep{IPLeiriaThesis}|. You can also show your appreciation for this template by giving a \href{https://github.com/joseareia/ipleiria-thesis/stargazers}{star} on the GitHub repository. This helps increase its visibility, and you will receive notifications about the latest updates and releases. Either way, acknowledging this work, which involved significant effort and countless hours, would be greatly appreciated.
+% Objective 4 — Empirical evaluation (maps to Chapter 7: Evaluation):
+%   "To evaluate the framework against a set of real-world open-source project SBOMs
+%   and demonstrate its ability to surface structural risk not visible through
+%   flat-inventory analysis."
+
+
+\section{Contributions}
+\label{sec:contributions}
+
+% Writing guidance: Each contribution is a verifiable deliverable — a module, pipeline,
+% or demonstrated capability. Use active verbs: "we design," "we implement," "we
+% demonstrate." Contributions are written as a numbered list (\begin{enumerate}) with
+% \textbf{} for the contribution name, followed by a dash and one or two sentences.
+
+% Contribution 1 — SBOM Graph Visualization (Chapter 4):
+%   \textbf{SBOM Graph Visualization} — An interactive directed dependency graph
+%   constructed from CycloneDX JSON SBOMs and rendered with Cytoscape.js, supporting
+%   topology exploration, node inspection, and interactive editing of the dependency
+%   structure. This contribution provides the foundational data structure upon which
+%   all analysis is performed.
+
+% Contribution 2 — Vulnerability Analysis (Chapter 5):
+%   \textbf{Multi-Source Vulnerability Analysis} — A vulnerability integration pipeline
+%   that queries NVD, OSV, and GitHub Security Advisories, deduplicates findings across
+%   sources, and computes full CVSS v3.1 base scores. Results are overlaid on the
+%   dependency graph, visually distinguishing vulnerable nodes by severity band.
+
+% Contribution 3 — Structural Risk Assessment (Chapter 6, first half):
+%   \textbf{Structural Risk Assessment} — A suite of algorithms that identify structural
+%   vulnerabilities in dependency graphs: articulation point detection (single points of
+%   failure), Shannon entropy of the degree distribution (dependency concentration),
+%   diamond dependency detection (version conflict risk), and k-core decomposition
+%   (depth of component entrenchment).
+
+% Contribution 4 — Graph Analysis (Chapter 6, second half):
+%   \textbf{Graph Analysis} — Application of Louvain community detection (ecosystem
+%   modularity), HITS algorithm (hub and authority scoring for dependency centrality),
+%   spectral radius computation (epidemic threshold estimation), and an SIR-analogy
+%   epidemic propagation model (vulnerability spread simulation).
+
+% Contribution 5 — Empirical Evaluation (Chapter 7):
+%   \textbf{Empirical Evaluation} — Results on a set of real-world open-source project
+%   SBOMs, reporting graph-level and node-level metrics and demonstrating that the
+%   framework surfaces risk not visible through flat-inventory approaches. (Author note:
+%   update with number of SBOMs once dataset is selected — see \autoref{cp:evaluation}.)
+
+
+\section{Scope and Limitations}
+\label{sec:scope}
+
+% Key point 1: SBOM format scope. SBOM Lens supports CycloneDX JSON only. SBOMs in
+%   SPDX or SWID formats are not supported. This is an explicit design boundary, not
+%   an oversight — CycloneDX JSON is the format with the richest dependency graph
+%   representation in the OWASP ecosystem.
+
+% Key point 2: Evaluation scope. The evaluation is based on graph metrics computed on
+%   real-world open-source project SBOMs. The thesis does not include a formal usability
+%   study or user experiment. Assessment is metric-based, not user-experience-based.
+
+% Key point 3: Feature scope — out of scope items. The following features are explicitly
+%   out of scope for this thesis version:
+%   - SBOM comparison / delta analysis (comparing two SBOMs for a project over time)
+%   - Topology Optimizer (automated dependency graph restructuring recommendations)
+%   - SBOMs for compiled binaries or container images (source-level SBOMs only)
+%   The rationale for each exclusion should be stated briefly (scope management, not
+%   fundamental limitations of the approach).
+
+% Key point 4: Claims scope. The thesis demonstrates that graph theory and network
+%   science metrics expose structural risk not visible in flat inventories. It does not
+%   claim to solve software supply chain security comprehensively, nor does it claim
+%   the algorithms are novel — the novelty lies in their systematic application to
+%   SBOM dependency graphs.
+
+
+\section{Thesis Structure}
+\label{sec:structure}
+
+% Writing guidance: Write one or two sentences per chapter stating the chapter's
+% ARGUMENT or PURPOSE, not just its title. Anti-pattern: "Chapter 2 presents background."
+% Good pattern: "Chapter 2 establishes the theoretical foundations..."
+% Use \autoref{} for all chapter cross-references.
+
+% The structure overview should be written as flowing prose (not a list), with one
+% short paragraph per chapter. The following content must appear:
+
+% \autoref{cp:introduction} (this chapter): Establishes the motivation for graph-based
+%   SBOM analysis through three supply chain attack cases, identifies the gap in existing
+%   tooling, and states the research objectives and contributions.
+
+% \autoref{cp:background}: Establishes the theoretical and technical foundations
+%   required to understand SBOM Lens — covering the SBOM concept and CycloneDX format,
+%   software supply chain security, graph theory fundamentals, network science concepts,
+%   and vulnerability databases (NVD, OSV, CVSS v3.1).
+
+% \autoref{cp:related-work}: Surveys existing SBOM analysis tools (Dependency-Track,
+%   grype, syft, Sunshine/CycloneDX, GUAC) and graph-based security research, then
+%   identifies the gap that SBOM Lens addresses.
+
+% \autoref{cp:system-design}: Describes the architecture of SBOM Lens — the React +
+%   FastAPI system design, the CycloneDX JSON parsing pipeline, directed graph
+%   construction, and the interactive SBOM Graph visualisation built with Cytoscape.js.
+
+% \autoref{cp:vuln-analysis}: Presents the multi-source vulnerability integration
+%   pipeline (NVD, OSV, GitHub Security Advisories), the CVSS v3.1 base score computation
+%   model, vulnerability management workflow, and graph overlay visualisation.
+
+% \autoref{cp:network-sci}: Presents the structural risk assessment algorithms
+%   (articulation points, entropy, diamond dependency detection, k-core decomposition)
+%   and graph analysis methods (Louvain community detection, HITS, spectral radius,
+%   SIR-analogy epidemic propagation), explaining the theoretical basis and supply chain
+%   risk interpretation of each.
+
+% \autoref{cp:evaluation}: Evaluates the framework on a set of real-world open-source
+%   project SBOMs, reporting graph metrics, vulnerability findings, and network science
+%   results. Discusses what the metrics reveal and the limitations of the evaluation.
+
+% \autoref{cp:conclusion}: Summarises the contributions, maps them back to the research
+%   objectives stated in this chapter, acknowledges limitations of the current work, and
+%   proposes concrete directions for future research.
