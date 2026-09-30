@@ -1,234 +1,91 @@
 \chapter[Introduction]{Introduction}
 \label{cp:introduction}
 
-% Writing guidance: This chapter follows a funnel structure — broad context (supply
-% chain risk is a growing threat), narrowing to the specific gap (existing SBOM tools
-% treat inventories as flat lists, not graphs amenable to structural analysis), then
-% zooming into what was built (SBOM Lens) and what was found. Target length: 7–10 pages.
-% Technical terms (CycloneDX, CVSS, articulation points) should be named here but NOT
-% explained — forward-reference to Chapter 2 for definitions.
-
-
 \section{Motivation}
 \label{sec:motivation}
 
-% Key point 1: Modern software is built on third-party open-source dependencies.
-%   The scale is significant — cite a statistic from the Synopsys OSSRA report or
-%   similar (e.g., "X% of commercial codebases contain open-source components").
-%   Frame the software supply chain as the aggregate of all these dependencies and
-%   the trust relationships between them.
+Modern software is rarely built from scratch. The overwhelming majority of production systems depend on third-party open-source components: the Synopsys 2024 Open Source Security and Risk Analysis report found that 96\% of commercial codebases contain open-source code and that the average codebase incorporates over 500 open-source components \citep{Synopsys2024OSSRA}. Each of these components introduces its own transitive closure of further dependencies, forming a supply chain whose attack surface is orders of magnitude larger than the first-party code that developers directly author. The software supply chain --- the aggregate of all such components, their origins, build pipelines, and trust relationships --- has consequently become one of the most consequential and least understood risk surfaces in modern cybersecurity.
 
-% Key point 2: Supply chain attacks exploit that trust. Three attacks establish the stakes:
-%   - SolarWinds SUNBURST (December 2020, CISA Alert AA20-352A): attackers compromised
-%     the build pipeline of a trusted vendor; malicious update propagated to ~18,000
-%     organisations including US government agencies. Demonstrates cascading failure
-%     through vendor trust relationships.
-%   - log4shell (CVE-2021-44228, December 2021): a critical flaw in the Apache Log4j
-%     library — a transitive dependency in millions of Java applications — exposed an
-%     estimated 3 billion devices. Demonstrates how a single indirect dependency can
-%     compromise an entire ecosystem.
-%   - xz-utils backdoor (CVE-2024-3094, CVSS 10.0, March 2024): a two-year social
-%     engineering campaign inserted a backdoor into a core Linux compression utility,
-%     narrowly avoided widespread SSH compromise. Demonstrates patience and stealth
-%     in supply chain attacks.
+The fragility of this supply chain was exposed in dramatic fashion by a succession of high-profile attacks. In December 2020, the SUNBURST campaign targeted SolarWinds, a network management vendor trusted by thousands of organisations including agencies of the United States federal government. Attackers compromised the vendor's build pipeline and inserted malicious code into a signed software update that was subsequently distributed to approximately 18,000 customers \citep{CISA_AA20_352A}. The incident demonstrated how a single trusted upstream vendor can become an unwitting vector for cascading compromise across an entire downstream ecosystem. A year later, in December 2021, the disclosure of CVE-2021-44228 in Apache Log4j --- universally known as \textit{log4shell} --- revealed a critical remote code execution vulnerability in a logging library present as a transitive dependency in an estimated three billion Java-based applications \citep{NIST_CVE_2021_44228}. The difficulty organisations faced in determining whether they were exposed illustrates precisely the challenge this thesis addresses: without a structural model of the dependency graph, the presence of a transitive dependency remains invisible until it is exploited. In March 2024, the xz-utils backdoor (CVE-2024-3094, CVSS 10.0) added a further dimension of supply chain risk to the record: a patient, multi-year social engineering campaign against an open-source maintainer resulted in the insertion of a cryptographic backdoor into a core Linux compression utility that, had it reached widespread deployment, would have compromised SSH authentication on affected systems \citep{NVD_CVE_2024_3094}. Together, these three incidents establish that supply chain attacks are diverse in method, severe in potential impact, and increasing in sophistication.
 
-% Key point 3: Policy response — the SBOM mandate. US Executive Order 14028
-%   (May 2021) mandated that software sold to the US federal government must be
-%   accompanied by a Software Bill of Materials (SBOM) — a machine-readable inventory
-%   of all components and dependencies. EO 14028 Section 10(j) provides the authoritative
-%   definition. EO 14144 (January 2025) reinforced and extended these requirements.
-%   NIST and CISA have published SBOM minimum elements guidance. Cite: \citep{EO14028}.
+Regulators around the world have responded by mandating greater transparency over software composition. In the European Union, the Cyber Resilience Act (CRA), entered into force in December 2024, enforces manufacturers and developers of products with digital elements sold in the EU market to document the components of their software and to address known vulnerabilities throughout the product lifecycle \citep{CRA2024}. The CRA explicitly names the SBOM --- a machine-readable inventory of all software components and their dependency relationships --- as a key instrument of this transparency obligation. In the United States, Executive Order 14028, signed in May 2021, similarly mandated that software supplied to the federal government be accompanied by an SBOM, defining it as ``a formal record containing the details and supply chain relationships of various components used in building software'' \citep{EO14028}. Executive Order 14144, issued in January 2025, reinforced and extended these requirements \citep{EO14144}. The SBOM has thus transitioned from a niche software engineering practice to a regulatory expectation on both sides of the Atlantic, and the volume of SBOMs in circulation is set to grow substantially in coming years.
 
-% Key point 4: The transparency gap. Despite SBOM adoption, existing analysis tools
-%   (Dependency-Track, grype, syft, Sunshine/CycloneDX) treat SBOMs as flat component
-%   inventories. They answer "what components are present?" and "do any have known CVEs?"
-%   but do not model the dependency graph structure. They cannot identify which components
-%   are structural bottlenecks, how vulnerabilities would propagate through the dependency
-%   network, or how to prioritise remediation based on graph position.
+Yet the emergence of the SBOM as a transparency artefact has not been matched by commensurate progress in analytical tooling. The dominant open-source tools in the SBOM ecosystem --- Dependency-Track, grype, syft, and Sunshine/CycloneDX --- treat SBOMs as flat component inventories \citep{DependencyTrack, Grype, Syft}. They answer two questions effectively: \textit{what components are present?} and \textit{do any of them have known CVEs?} What they do not do is model the structure of the dependency graph. When a vulnerability is disclosed in a given component, these tools report the affected component in isolation --- but they provide no answer to the question a security analyst immediately needs: \textit{which other components in my system depend on this one, directly or transitively, and are therefore also at risk?} Nor do they identify which components, if compromised, would expose the largest number of upstream dependents --- all the components that transitively rely on them and would therefore inherit the risk. The result is that analysts must manually triage long flat lists of CVEs with no structural context to guide prioritisation.
 
-% Key point 5: The opportunity — graph theory and network science. A dependency graph
-%   is a directed graph by nature. Network science provides a rich toolkit for analysing
-%   such graphs: articulation points reveal single points of failure; k-core decomposition
-%   identifies the most deeply embedded components; spectral analysis and epidemic models
-%   estimate vulnerability propagation potential. These techniques are mature in other
-%   domains (biological networks, social networks, internet topology) but have not been
-%   systematically applied to SBOM dependency graphs.
+The opportunity for a more rigorous approach lies in the observation that a software dependency graph is, by construction, a directed graph --- and graph theory provides precisely the tools needed to answer both questions above. Given a directed dependency graph, the set of all components affected by a vulnerability in component \(v\) is the set of ancestors of \(v\) in the graph, computable in linear time. Graph-theoretic centrality measures further allow the identification of components that, if compromised, would affect a disproportionately large portion of the dependency tree --- components that a security analyst should treat as higher-priority regardless of their individual CVSS score. Articulation points identify components whose removal would disconnect the graph entirely, representing single points of structural failure. These techniques are well-established in graph theory \citep{Cormen2009} but have not been systematically applied to SBOM dependency graphs.
 
-% Key point 6: Thesis statement (one paragraph, written directly — not a comment).
-This dissertation presents SBOM Lens, a graph-based framework for software supply chain risk assessment. The system ingests Software Bills of Materials in CycloneDX format and constructs a directed dependency graph, over which network science techniques are applied to surface structural vulnerabilities not visible through flat-inventory analysis. The design, implementation, and evaluation of SBOM Lens are described in \autoref{cp:system-design}, \autoref{cp:vuln-analysis}, and \autoref{cp:network-sci}, respectively, with empirical results presented in \autoref{cp:evaluation}.
+This dissertation presents SBOM Lens, a graph-based framework for software supply chain risk assessment. The system ingests Software Bills of Materials in CycloneDX format and constructs a directed dependency graph, over which graph-theoretic techniques are applied to surface structural vulnerabilities not visible through flat-inventory analysis. The design, implementation, and evaluation of SBOM Lens are described in \autoref{cp:system-design}, \autoref{cp:vuln-analysis}, and \autoref{cp:network-sci}, respectively, with empirical results presented in \autoref{cp:evaluation}.
 
 
 \section{Problem Statement}
 \label{sec:problem-statement}
 
-% Key point 1: Define the specific problem precisely. Existing SBOM tooling has two
-%   limitations: (a) vulnerability matching is done component-by-component without
-%   considering the graph position of a vulnerable component — a vulnerability in a
-%   deeply embedded, highly connected node is treated identically to one in a leaf node;
-%   (b) no structural risk metrics are computed — concepts like articulation points,
-%   k-core depth, or community structure are absent from existing tools.
+Existing SBOM analysis tooling suffers from a structural limitation that is architectural rather than incidental: it treats the dependency graph as a flat list. When a security analyst queries a tool such as Dependency-Track or grype for the vulnerabilities present in a given SBOM, the result is a table of (component, CVE, severity) tuples ranked at most by CVSS score. There is no representation of the relationships between components, no indication of how many other components depend on a given vulnerable package, and no means of determining whether a vulnerable component sits at the centre of the dependency tree or at its periphery. This limitation has two concrete consequences for the analyst.
 
-% Key point 2: Consequence of the gap. Without graph-based analysis, security teams
-%   must manually triage hundreds of CVEs from a flat list, with no way to prioritise
-%   based on structural impact. A CVE in a shared transitive dependency used by 80% of
-%   the graph's components is not distinguishable from one in an isolated leaf component.
+The first consequence is \textit{invisible blast radius}. When a new vulnerability is disclosed in a widely-used library --- as occurred with log4shell --- the analyst's immediate question is not ``does this component have a CVE?'' but rather ``how much of my system is exposed?'' Answering that question requires traversing the dependency graph upstream from the vulnerable component to find all packages that depend on it, directly or transitively. No mainstream SBOM tool performs this traversal; the analyst must do it manually, if they can do it at all.
 
-% Key point 3: The research gap statement. Cite the ACM landscape study (2025) or
-%   similar to ground the claim that graph-based SBOM analysis is absent from the
-%   current tool ecosystem. Note GUAC (Graph for Understanding Artifact Composition,
-%   OpenSSF 2024) as the closest related work — GUAC models provenance graphs across
-%   projects, but does not apply network science metrics for within-SBOM risk assessment.
-%   Forward-reference to \autoref{cp:related-work} for detailed comparison.
+The second consequence is \textit{undifferentiated prioritisation}. A CVSS score measures the intrinsic severity of a vulnerability in isolation --- attack vector, complexity, impact --- but says nothing about the structural importance of the affected component within the system. A critical-severity CVE in a component that is a leaf node with no dependents poses a fundamentally different remediation burden than the same CVE in a component that is a shared transitive dependency of dozens of packages throughout the graph. Without graph-structural context, both appear equally urgent on a flat list, and the analyst has no principled basis for deciding where to act first.
 
-% Key point 4: The proposed solution in one sentence. SBOM Lens fills this gap by
-%   constructing a per-SBOM directed dependency graph and applying a suite of network
-%   science algorithms to produce graph-level and node-level risk metrics. The research
-%   question is not "can this be done?" (the system exists) but "what does it reveal?"
-%   (the empirical evaluation in \autoref{cp:evaluation} answers this).
+The research gap is well-documented in the literature. A 2025 landscape study of SBOM tooling \citep{SBOMlandscape2025} found that graph-based analysis of dependency structure is absent from the current tool ecosystem. The closest existing work is GUAC (Graph for Understanding Artifact Composition), developed under the OpenSSF umbrella, which constructs provenance graphs across multiple projects and organisations \citep{GUAC2024}. GUAC addresses supply chain transparency at a cross-project, ecosystem-wide scale, but it does not perform within-SBOM graph analysis to assess the structural risk profile of a single software system. A detailed comparison of SBOM Lens with GUAC and other related tools is presented in \autoref{cp:related-work}.
+
+SBOM Lens addresses this gap by constructing a directed dependency graph from a CycloneDX SBOM and providing the analyst with two complementary views. The first is \textit{impact traversal}: given any vulnerable component, the system immediately identifies all components that depend on it, at any depth, giving the analyst an accurate and complete picture of the blast radius. The second is \textit{structural risk ranking}: using graph-theoretic measures, the system identifies which components are structurally most likely to propagate risk widely if compromised, allowing the analyst to prioritise monitoring and remediation based not only on CVE severity but on the component's position within the dependency graph. The research question is not whether these capabilities can be built --- the system exists --- but what they reveal when applied to real-world open-source SBOMs, a question answered empirically in \autoref{cp:evaluation}.
 
 
 \section{Research Objectives}
 \label{sec:objectives}
 
-% Writing guidance: Objectives are framed as design-and-analysis goals, not hypothesis
-% questions, because this is a tool/system thesis with a built artefact. Each objective
-% maps to one implementation or evaluation chapter — this alignment allows the Conclusion
-% to verify each was addressed.
+This work is framed as a design-and-analysis thesis: the system under study, SBOM Lens, has been built, and the objectives concern both its construction and what it reveals when applied empirically. Each objective maps directly to one of the implementation or evaluation chapters, allowing the conclusions drawn in \autoref{cp:conclusion} to be verified against each stated goal.
 
-% The following four objectives should be written as a numbered list (\begin{enumerate}):
-
-% Objective 1 — Graph construction pipeline (maps to Chapter 4: System Design):
-%   "To design and implement a directed dependency graph construction pipeline that
-%   ingests CycloneDX JSON SBOMs and produces an annotated dependency graph amenable
-%   to further analysis."
-
-% Objective 2 — Vulnerability integration (maps to Chapter 5: Vulnerability Analysis):
-%   "To integrate multi-source vulnerability data (NVD, OSV, and GitHub Security
-%   Advisories) with full CVSS v3.1 base score computation and overlay the results
-%   on the dependency graph."
-
-% Objective 3 — Network science algorithms (maps to Chapter 6: Network Science):
-%   "To apply network science algorithms — including articulation point detection,
-%   k-core decomposition, Louvain community detection, HITS hub/authority scoring,
-%   spectral radius computation, and an SIR-analogy epidemic propagation model —
-%   to quantify structural risk in software dependency graphs."
-
-% Objective 4 — Empirical evaluation (maps to Chapter 7: Evaluation):
-%   "To evaluate the framework against a set of real-world open-source project SBOMs
-%   and demonstrate its ability to surface structural risk not visible through
-%   flat-inventory analysis."
+\begin{enumerate}
+    \item \textbf{Graph construction pipeline.} To design and implement a directed dependency graph construction pipeline that ingests CycloneDX JSON SBOMs and produces an annotated graph --- with components as nodes and dependency relationships as directed edges --- suitable for interactive visualisation and further graph-theoretic analysis. (\autoref{cp:system-design})
+    \item \textbf{Vulnerability integration.} To integrate multi-source vulnerability data from the National Vulnerability Database (NVD), the Open Source Vulnerabilities database (OSV), and GitHub Security Advisories, with full CVSS v3.1 base score computation, and to overlay the results on the dependency graph so that the analyst can immediately see which nodes carry known vulnerabilities and at what severity. (\autoref{cp:vuln-analysis})
+    \item \textbf{Graph-based structural risk analysis.} To apply a suite of graph-theoretic algorithms --- including impact traversal to enumerate all components affected by a vulnerability in a given node, centrality and articulation point analysis to identify components with the highest structural propagation potential, and community detection to surface the modular structure of the dependency ecosystem --- so as to give the analyst a principled basis for prioritising remediation beyond raw CVSS scores. (\autoref{cp:network-sci})
+    \item \textbf{Empirical evaluation.} To evaluate the framework against a set of real-world open-source project SBOMs and demonstrate, through graph-level and node-level metrics, that the approach surfaces structural risk information that is not available through flat-inventory analysis. (\autoref{cp:evaluation})
+\end{enumerate}
 
 
 \section{Contributions}
 \label{sec:contributions}
 
-% Writing guidance: Each contribution is a verifiable deliverable — a module, pipeline,
-% or demonstrated capability. Use active verbs: "we design," "we implement," "we
-% demonstrate." Contributions are written as a numbered list (\begin{enumerate}) with
-% \textbf{} for the contribution name, followed by a dash and one or two sentences.
+This work makes four contributions, each corresponding to a distinct system capability or analytical result.
 
-% Contribution 1 — SBOM Graph Visualization (Chapter 4: System Design):
-%   \textbf{SBOM Graph Visualization} — An interactive directed dependency graph
-%   constructed from CycloneDX JSON SBOMs and rendered with Cytoscape.js, supporting
-%   topology exploration, node inspection, and interactive editing of the dependency
-%   structure. This contribution provides the foundational data structure upon which
-%   all analysis is performed.
-
-% Contribution 2 — Vulnerability Analysis (Chapter 5):
-%   \textbf{Multi-Source Vulnerability Analysis} — A vulnerability integration pipeline
-%   that queries NVD, OSV, and GitHub Security Advisories, deduplicates findings across
-%   sources, and computes full CVSS v3.1 base scores. Results are overlaid on the
-%   dependency graph, visually distinguishing vulnerable nodes by severity band.
-
-% Contribution 3 — Structural Risk Assessment (Chapter 6: Network Science, first half):
-%   \textbf{Structural Risk Assessment} — A suite of algorithms that identify structural
-%   vulnerabilities in dependency graphs: articulation point detection (single points of
-%   failure), Shannon entropy of the degree distribution (dependency concentration),
-%   diamond dependency detection (version conflict risk), and k-core decomposition
-%   (depth of component entrenchment).
-
-% Contribution 4 — Graph Analysis (Chapter 6: Network Science, second half):
-%   \textbf{Graph Analysis} — Application of Louvain community detection (ecosystem
-%   modularity), HITS algorithm (hub and authority scoring for dependency centrality),
-%   spectral radius computation (epidemic threshold estimation), and an SIR-analogy
-%   epidemic propagation model (vulnerability spread simulation).
-
-% Contribution 5 — Empirical Evaluation (Chapter 7):
-%   \textbf{Empirical Evaluation} — Results on a set of real-world open-source project
-%   SBOMs, reporting graph-level and node-level metrics and demonstrating that the
-%   framework surfaces risk not visible through flat-inventory approaches. (Author note:
-%   update with number of SBOMs once dataset is selected — see \autoref{cp:evaluation}.)
+\begin{enumerate}
+    \item \textbf{SBOM Graph Visualisation.} We design and implement an interactive directed dependency graph constructed from CycloneDX JSON SBOMs and rendered using Cytoscape.js. The visualisation supports topology exploration, node inspection, and interactive editing of the dependency structure, providing the foundational data model upon which all subsequent analysis is performed. (\autoref{cp:system-design})
+    \item \textbf{Multi-Source Vulnerability Analysis.} We implement a vulnerability integration pipeline that queries NVD, OSV, and GitHub Security Advisories, deduplicates findings across sources, and computes full CVSS v3.1 base scores. Vulnerable components are overlaid on the dependency graph and visually distinguished by severity band, giving the analyst an immediate picture of which nodes in the graph carry known vulnerabilities. (\autoref{cp:vuln-analysis})
+    \item \textbf{Graph-Based Structural Risk Analysis.} We apply a suite of graph-theoretic algorithms to the dependency graph to support analyst decision-making beyond raw CVE listings. Impact traversal identifies all components that depend --- directly or transitively --- on a given vulnerable node, making the blast radius of any vulnerability immediately visible. Centrality analysis and articulation point detection identify the components whose structural position makes them highest-priority targets for monitoring, regardless of whether they currently carry a known CVE. Community detection reveals the modular structure of the dependency ecosystem, supporting higher-level reasoning about isolation and blast containment. (\autoref{cp:network-sci})
+    \item \textbf{Empirical Evaluation.} We evaluate the framework against a dataset of real-world open-source project SBOMs, collected at scale from public repositories. Through graph-level and node-level metrics we demonstrate that the approach surfaces structural risk information that is not available through flat-inventory analysis, and we discuss the implications for security analyst workflows. (\autoref{cp:evaluation})
+\end{enumerate}
 
 
 \section{Scope and Limitations}
 \label{sec:scope}
 
-% Key point 1: SBOM format scope. SBOM Lens supports CycloneDX JSON only. SBOMs in
-%   SPDX or SWID formats are not supported. This is an explicit design boundary, not
-%   an oversight — CycloneDX JSON is the format with the richest dependency graph
-%   representation in the OWASP ecosystem.
+This section defines the explicit boundaries of the work to prevent misreading of the claims made in subsequent chapters.
 
-% Key point 2: Evaluation scope. The evaluation is based on graph metrics computed on
-%   real-world open-source project SBOMs. The thesis does not include a formal usability
-%   study or user experiment. Assessment is metric-based, not user-experience-based.
+\textbf{SBOM format.} SBOM Lens supports CycloneDX JSON as its sole input format. SBOMs in SPDX or SWID formats are not supported. This is a deliberate design boundary rather than an oversight: CycloneDX JSON provides the richest representation of component dependency relationships within the OWASP ecosystem, and its structured \texttt{dependencies} array maps directly onto a directed graph without the need for format translation. Forward-compatibility with other formats is left as future work.
 
-% Key point 3: Feature scope — out of scope items. The following features are explicitly
-%   out of scope for this thesis version:
-%   - SBOM comparison / delta analysis (comparing two SBOMs for a project over time)
-%   - Topology Optimizer (automated dependency graph restructuring recommendations)
-%   - SBOMs for compiled binaries or container images (source-level SBOMs only)
-%   The rationale for each exclusion should be stated briefly (scope management, not
-%   fundamental limitations of the approach).
+\textbf{Evaluation methodology.} The evaluation presented in \autoref{cp:evaluation} is metric-based: it reports graph-level and node-level measures computed on real-world open-source project SBOMs. The thesis does not include a formal usability study, a user experiment, or any assessment of whether security analysts find the tool's output actionable in practice. Such a study would require ethical approval and a participant cohort that falls outside the scope of this work.
 
-% Key point 4: Claims scope. The thesis demonstrates that graph theory and network
-%   science metrics expose structural risk not visible in flat inventories. It does not
-%   claim to solve software supply chain security comprehensively, nor does it claim
-%   the algorithms are novel — the novelty lies in their systematic application to
-%   SBOM dependency graphs.
+\textbf{Features out of scope.} Three capabilities that naturally extend the SBOM Lens concept are explicitly excluded from this thesis. SBOM comparison and delta analysis --- the comparison of two SBOMs for the same project across time to detect dependency changes --- is a distinct analytical problem that would require a temporal data model not present in the current system. The Topology Optimiser --- automated recommendations for restructuring the dependency graph to reduce structural risk --- requires a constraint satisfaction or optimisation layer beyond the scope of this work. Finally, SBOM Lens operates on source-level SBOMs generated from package manifests; SBOMs derived from compiled binaries or container images raise format and toolchain questions that are not addressed here.
+
+\textbf{Novelty claims.} This thesis does not claim that the graph-theoretic algorithms applied are themselves novel --- articulation point detection, centrality analysis, and community detection are well-established techniques. The contribution lies in their systematic application to SBOM dependency graphs as a coherent risk assessment framework, and in the empirical demonstration of what they reveal about real-world software supply chains.
 
 
 \section{Thesis Structure}
 \label{sec:structure}
 
-% Writing guidance: Write one or two sentences per chapter stating the chapter's
-% ARGUMENT or PURPOSE, not just its title. Anti-pattern: "Chapter 2 presents background."
-% Good pattern: "Chapter 2 establishes the theoretical foundations..."
-% Use \autoref{} for all chapter cross-references.
+The remainder of this dissertation is organised as follows.
 
-% The structure overview should be written as flowing prose (not a list), with one
-% short paragraph per chapter. The following content must appear:
+\autoref{cp:background} establishes the theoretical and technical foundations required to understand SBOM Lens. It covers the concept of a Software Bill of Materials and the CycloneDX format, the software supply chain security landscape, the fundamentals of graph theory and network science, and the vulnerability databases and scoring systems --- NVD, OSV, and CVSS v3.1 --- that underpin the vulnerability analysis.
 
-% \autoref{cp:introduction} (this chapter): Establishes the motivation for graph-based
-%   SBOM analysis through three supply chain attack cases, identifies the gap in existing
-%   tooling, and states the research objectives and contributions.
+\autoref{cp:related-work} surveys the existing landscape of SBOM analysis tools --- including Dependency-Track, grype, syft, and Sunshine/CycloneDX --- alongside graph-based security research and supply chain attack case studies. It identifies the gap that SBOM Lens addresses: the absence of graph-structural risk analysis in current tooling.
 
-% \autoref{cp:background}: Establishes the theoretical and technical foundations
-%   required to understand SBOM Lens — covering the SBOM concept and CycloneDX format,
-%   software supply chain security, graph theory fundamentals, network science concepts,
-%   and vulnerability databases (NVD, OSV, CVSS v3.1).
+\autoref{cp:system-design} describes the architecture of SBOM Lens. It presents the React and FastAPI system design, the CycloneDX JSON parsing pipeline, the construction of the directed dependency graph, and the interactive SBOM Graph visualisation built with Cytoscape.js.
 
-% \autoref{cp:related-work}: Surveys existing SBOM analysis tools (Dependency-Track,
-%   grype, syft, Sunshine/CycloneDX, GUAC) and graph-based security research, then
-%   identifies the gap that SBOM Lens addresses.
+\autoref{cp:vuln-analysis} presents the multi-source vulnerability integration pipeline, covering NVD, OSV, and GitHub Security Advisories. It details the CVSS v3.1 base score computation model, the vulnerability management workflow, and the graph overlay that visually surfaces vulnerable nodes by severity band.
 
-% \autoref{cp:system-design}: Describes the architecture of SBOM Lens — the React +
-%   FastAPI system design, the CycloneDX JSON parsing pipeline, directed graph
-%   construction, and the interactive SBOM Graph visualisation built with Cytoscape.js.
+\autoref{cp:network-sci} presents the structural risk assessment algorithms --- articulation point detection, Shannon entropy of the degree distribution, diamond dependency detection, and k-core decomposition --- and the graph analysis methods: Louvain community detection, the HITS algorithm, and eigenvector centrality. For each technique, the chapter explains the theoretical basis and its interpretation in the context of software supply chain risk.
 
-% \autoref{cp:vuln-analysis}: Presents the multi-source vulnerability integration
-%   pipeline (NVD, OSV, GitHub Security Advisories), the CVSS v3.1 base score computation
-%   model, vulnerability management workflow, and graph overlay visualisation.
+\autoref{cp:evaluation} evaluates the framework against a set of real-world open-source project SBOMs. It reports graph-level and node-level metrics, vulnerability findings, and structural analysis results, and discusses what the analysis reveals about structural risk in software supply chains.
 
-% \autoref{cp:network-sci}: Presents the structural risk assessment algorithms
-%   (articulation points, entropy, diamond dependency detection, k-core decomposition)
-%   and graph analysis methods (Louvain community detection, HITS, spectral radius,
-%   SIR-analogy epidemic propagation), explaining the theoretical basis and supply chain
-%   risk interpretation of each.
-
-% \autoref{cp:evaluation}: Evaluates the framework on a set of real-world open-source
-%   project SBOMs, reporting graph metrics, vulnerability findings, and network science
-%   results. Discusses what the metrics reveal and the limitations of the evaluation.
-
-% \autoref{cp:conclusion}: Summarises the contributions, maps them back to the research
-%   objectives stated in this chapter, acknowledges limitations of the current work, and
-%   proposes concrete directions for future research.
+\autoref{cp:conclusion} summarises the contributions of this work, maps them back to the research objectives stated in this chapter, acknowledges the limitations of the current implementation, and proposes directions for future research.

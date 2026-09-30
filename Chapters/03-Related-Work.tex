@@ -1,0 +1,96 @@
+\chapter[Related Work]{Related Work}
+\label{cp:related-work}
+
+Situating SBOM Lens within existing work requires surveying three bodies of literature that do not ordinarily appear side by side: the practical tooling landscape for SBOM analysis, the academic research programme on graph-based software security, and a pair of supply chain incidents that illustrate the structural blindspots the tools leave open. This chapter covers each in turn. \autoref{sec:sbom-tools} surveys four open-source SBOM tools using a feature matrix, weaving in the CVSS/EPSS scoring context established in \autoref{cp:background}. \autoref{sec:graph-security-research} organises the academic literature into four research clusters and connects each to an SBOM Lens design decision. \autoref{sec:case-studies} re-examines the SolarWinds SUNBURST compromise and the log4shell disclosure through the lens of SBOM graph analysis rather than incident narrative. \autoref{sec:gap-analysis} synthesises the survey into four named research gaps that SBOM Lens addresses in \autoref{cp:system-design}, \autoref{cp:vuln-analysis}, and \autoref{cp:network-sci}.
+
+
+\section{Existing SBOM Analysis Tools}
+\label{sec:sbom-tools}
+
+The SBOM tooling ecosystem has grown rapidly since the US Executive Order 14028 of 2021 accelerated adoption across government-adjacent supply chains. Four open-source tools are in widespread production use: Dependency-Track (OWASP), grype and syft (Anchore), and Sunshine (CycloneDX project). Commercial tools such as FOSSA also exist but are beyond the scope of this survey, which focuses on open-source solutions whose internals can be examined and extended. Closest to the graph-adjacent end of the spectrum is GUAC (Graph for Understanding Artifact Composition), which joined OpenSSF as an incubating project in March 2024 \citep{GUAC2024}; GUAC constructs graphs across multiple SBOMs at portfolio scale, which is a complementary but distinct scope from the within-SBOM structural analysis that SBOM Lens addresses.
+
+\autoref{tab:sbom-tools} compares the four open-source tools along four dimensions: SBOM format support, graph capability, vulnerability integration, and scope/purpose. SBOM Lens appears as the final row, separated by a rule, so the capability gaps are structurally visible.
+% TODO: the PDF had only this paragraph and the table in Section 3.1. Add per-tool prose
+% (Dependency-Track, grype, syft, Sunshine) citing DependencyTrack, Grype, Syft, and a Sunshine source.
+
+\begin{table}[!htpb]
+    \centering
+    \small
+    \renewcommand{\tabularxcolumn}[1]{p{#1}}
+    \caption[Comparison of SBOM analysis tools]{Comparison of SBOM analysis tools across four capability dimensions. SBOM Lens (last row) is the reference implementation evaluated in this thesis.}
+    \label{tab:sbom-tools}
+    \begin{tabularx}{\textwidth}{@{}p{1.8cm}p{2.1cm}LLL@{}}
+        \toprule
+        \textbf{Tool} & \textbf{Format Support} & \textbf{Graph Capability} & \textbf{Vuln Integration} & \textbf{Scope} \\
+        \midrule
+        Dependency-Track & CycloneDX (preferred), SPDX & None --- flat component list & NVD, OSV, GHSA, EPSS, Snyk, VulnDB & Portfolio-wide continuous monitoring \\
+        grype & CycloneDX, SPDX & None --- flat CVE list & Aggregated DB (NVD, OSV, GHSA), EPSS, CISA KEV & Point-in-time vulnerability scan; CI/CD \\
+        syft & CycloneDX (JSON+XML), SPDX & None --- SBOM generator only & None (generation only) & SBOM generation from images, filesystems, source \\
+        Sunshine & CycloneDX JSON only & Visual/hierarchical only (sunburst chart) --- no graph algorithms & EPSS, CISA KEV enrichment; SQL query interface & Interactive SBOM viewer and SQL querying \\
+        \midrule
+        SBOM Lens & CycloneDX JSON & Directed dependency graph; articulation points, k-core decomposition, HITS, Louvain community detection, degree, betweenness, and closeness centrality & NVD, OSV, GHSA; CVSS v3.1 base score; vulnerability--graph overlay & Within-SBOM structural risk assessment \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+
+\section{Graph-Based Security Research}
+\label{sec:graph-security-research}
+
+A substantial body of academic work applies graph theory and network science to software dependency networks, primarily at the package-ecosystem scale. This section surveys four research clusters --- dependency graph analysis, software vulnerability graphs, call graph and static analysis, and network science applied to software --- and positions SBOM Lens relative to each. Each cluster closes with a forward reference to the SBOM Lens implementation chapter where the cluster's insights are applied.
+
+
+\subsection{Dependency Graph Analysis}
+\label{sec:rw-dependency-graphs}
+
+Empirical studies of package dependency networks have established that open-source ecosystems form large, scale-free graphs in which a small number of packages are transitively depended upon by the majority of the ecosystem.
+% TODO: section was a stub in the PDF. Expand with ecosystem-scale studies (e.g. npm/PyPI dependency
+% network analyses), then forward-reference \autoref{cp:network-sci}.
+
+
+\subsection{Software Vulnerability Graphs}
+\label{sec:rw-vuln-graphs}
+
+A second cluster of work models vulnerability propagation through dependency graphs, moving beyond per-package CVE counts toward structural propagation metrics.
+% TODO: section was a stub in the PDF. Expand, then forward-reference \autoref{cp:vuln-analysis}.
+
+
+\subsection{Call Graph and Static Analysis}
+\label{sec:rw-call-graphs}
+
+Call graph reachability analysis determines whether a vulnerable function is actually reachable from application code, filtering CVE noise to only genuinely exploitable paths.
+% TODO: section was a stub in the PDF. Expand, and state why SBOM Lens works at component level.
+
+
+\subsection{Network Science Applied to Software}
+\label{sec:rw-network-science}
+
+The network science literature provides the theoretical toolkit that SBOM Lens applies to individual SBOM dependency graphs.
+% TODO: section was a stub in the PDF. Expand, then forward-reference \autoref{cp:network-sci}.
+
+
+\section{Supply Chain Attack Case Studies}
+\label{sec:case-studies}
+
+Both cases examined below were introduced in \autoref{sec:motivation} as evidence of the structural risks motivating SBOM Lens. Rather than re-narrating the incidents, this section frames each through the SBOM graph analysis lens: what information was encoded in the dependency graph, and what graph-theoretic metrics would have made the structural exposure visible before or immediately after disclosure.
+
+
+\subsection{SolarWinds SUNBURST (December 2020)}
+\label{sec:case-solarwinds}
+
+As introduced in \autoref{sec:motivation}, the SolarWinds SUNBURST compromise demonstrated build-pipeline supply chain risk \citep{CISA_AA20_352A}; this subsection examines what graph-based SBOM analysis would have revealed.
+% TODO: section was a stub in the PDF.
+
+
+\subsection{log4shell (CVE-2021-44228, December 2021)}
+\label{sec:case-log4shell}
+
+As introduced in \autoref{sec:motivation}, the log4shell vulnerability exposed the hidden scale of transitive dependency risk \citep{NIST_CVE_2021_44228}; this subsection quantifies what an SBOM graph would have shown.
+% TODO: section was a stub in the PDF.
+
+
+\section{Gap Analysis}
+\label{sec:gap-analysis}
+
+The survey above reveals four capabilities absent from current tooling and the research literature; SBOM Lens addresses each of these gaps. The evidence for each absence is grounded in \autoref{tab:sbom-tools} and the research clusters surveyed in \autoref{sec:graph-security-research}.
+% TODO: section was a stub in the PDF. Name the four gaps and map each to a chapter.

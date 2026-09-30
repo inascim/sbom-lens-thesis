@@ -1,0 +1,282 @@
+\chapter[Background]{Background}
+\label{cp:background}
+
+Modern software systems depend on hundreds or thousands of third-party components whose internals their developers never inspect. Understanding, securing, and analysing these dependency networks requires a common vocabulary spanning three fields that do not normally overlap in software engineering curricula: supply chain security, graph theory, and vulnerability scoring. This chapter establishes that vocabulary. Every concept defined here reappears by name in \autoref{cp:system-design}, \autoref{cp:vuln-analysis}, and \autoref{cp:network-sci} without re-definition. The chapter is organised in dependency order: \autoref{sec:sbom-cyclonedx} defines the data format that SBOM Lens ingests; \autoref{sec:supply-chain-security} frames the threat landscape that motivates the analysis; \autoref{sec:graph-theory} and \autoref{sec:network-science} establish the structural analysis concepts applied to that data; and \autoref{sec:vuln-databases} defines the scoring and database standards used to annotate the graph.
+
+
+\section{Software Bill of Materials and CycloneDX}
+\label{sec:sbom-cyclonedx}
+
+A Software Bill of Materials is the data foundation of SBOM Lens. This section defines what an SBOM is, surveys the formats in which SBOMs are encoded, and specifies exactly which fields of the CycloneDX format SBOM Lens consumes.
+
+
+\subsection{What is a Software Bill of Materials?}
+\label{sec:what-is-sbom}
+
+A \textit{Software Bill of Materials} (SBOM) is a machine-readable inventory of all software components, their versions, licences, and dependency relationships present in a given software artefact. The analogy to the ingredient label on food packaging is precise: just as a food label provides a standardised, legally mandated declaration of what a product contains, an SBOM provides a standardised, machine-processable declaration of what a software product is made of \citep{NTIA2021}.
+
+The US National Telecommunications and Information Administration (NTIA) defines seven minimum data fields that every conformant SBOM must contain: Supplier Name, Component Name, Version of the Component, Other Unique Identifiers (such as a Package URL, CPE, or SWID), Dependency Relationship, Author of SBOM Data, and Timestamp \citep{NTIA2021}. These fields define the baseline for interoperability across tooling and databases. Of the seven, the Dependency Relationship field is the most consequential for SBOM Lens: it is the only field that encodes the graph structure of the software system rather than the properties of individual components.
+
+The regulatory impetus for SBOM adoption has grown substantially since 2021. US Executive Order 14028 (May 2021) mandated SBOMs for software sold to the US federal government; EO 14144 (January 2025) extended and reinforced these requirements \citep{EO14028}. The European Cyber Resilience Act (CRA), which entered into force in December 2024, similarly requires software component transparency for products with digital elements sold in the EU market \citep{CRA2024}. SBOMs have therefore moved from a voluntary best practice to a regulatory requirement in the two largest software markets in the world.
+
+For SBOM Lens, the SBOM is the sole input artefact. Without the explicit dependency relationship field encoded in a machine-readable format, the graph construction pipeline described in \autoref{cp:system-design} would not be possible. The choice of CycloneDX as the supported format --- examined in \autoref{sec:cyclonedx-structure} --- is motivated directly by the richness and explicitness of its dependency graph representation.
+
+
+\subsection{SBOM Format Landscape}
+\label{sec:sbom-formats}
+
+Three machine-readable SBOM formats exist in practice: CycloneDX (OWASP, originally 2017), SPDX (Linux Foundation, originally 2010, now ISO/IEC 5962), and SWID Tags (ISO/IEC 19770-2). Each was designed with a different primary use case, and that design intent has significant practical consequences for graph-based analysis.
+
+SPDX was created primarily for licence compliance. Its relationship model is broad --- it defines approximately twenty-five relationship types including \texttt{DESCRIBES}, \texttt{CONTAINS}, \texttt{DEPENDS\_ON}, \texttt{GENERATED\_FROM}, and \texttt{OPTIONAL\_DEPENDENCY\_OF} --- but the dependency relationship is represented implicitly as one type among many, and SPDX 2.3 has no native structure for embedding vulnerability data. SPDX is widely adopted for licence auditing workflows but does not natively support the graph structure required for the analysis SBOM Lens performs.
+
+CycloneDX was designed from the outset for security use cases: vulnerability tracking, dependency analysis, and supply chain integrity verification. Its key structural advantage over SPDX is the explicit separation of components and their dependency relationships into two distinct top-level arrays. A CycloneDX document's \texttt{dependencies[]} array makes the dependency graph unambiguous: each entry declares a component and its set of direct dependents, with no inference required. CycloneDX 1.6 added native support for VEX (Vulnerability Exploitability eXchange) documents via a \texttt{vulnerabilities[]} array. The current version, CycloneDX 1.7, was published in 2025 and is standardised as ECMA-424 \citep{OWASPCycloneDX}.
+% REVIEW: each dependencies[] entry lists the component's direct *dependencies* (dependsOn), not its "dependents".
+
+SWID Tags are excluded from consideration for SBOM Lens because they lack a standardised dependency relationship field; they identify installed software but do not encode the graph structure between components.
+
+SBOM Lens supports CycloneDX JSON exclusively. This is an explicit design boundary, not an oversight: CycloneDX provides the most explicit and semantically unambiguous graph representation available in any SBOM format, eliminating the inference step that SPDX dependency reconstruction would require.
+
+
+\subsection{CycloneDX JSON Structure and SBOM Lens Fields}
+\label{sec:cyclonedx-structure}
+
+A CycloneDX JSON document has a rich schema, but SBOM Lens consumes three top-level constructs. The \texttt{metadata.component} object describes the root of the SBOM --- the project being analysed, with its name, version, and type. The \texttt{components[]} array contains one entry per dependency component, each carrying at minimum a \texttt{bom-ref} (a stable local document identifier), a \texttt{name}, a \texttt{version}, a \texttt{purl} (Package URL), and a \texttt{type}. The \texttt{dependencies[]} array encodes the graph structure: each entry takes the form \texttt{\{"ref": "bom-ref-A", "dependsOn": ["bom-ref-B", "bom-ref-C"]\}}, declaring that the component identified by \texttt{bom-ref-A} directly depends on both \texttt{bom-ref-B} and \texttt{bom-ref-C} \citep{OWASPCycloneDX}.
+
+The \texttt{bom-ref} field is SBOM Lens's graph node identifier. It is a stable, local reference that uniquely identifies a component within a single CycloneDX document. When \texttt{bom-ref} is absent --- which occurs in some generator tools --- SBOM Lens falls back to the \texttt{purl} field, and further to the \texttt{name} field as a last resort. This three-step fallback chain is implemented in the graph construction pipeline described in \autoref{cp:system-design}.
+
+The directed dependency graph is constructed directly from these fields. The vertex set \(V\) comprises all entries in \texttt{components[]} plus the root component from \texttt{metadata.component}. The edge set \(E\) is derived from \texttt{dependencies[]}: for each entry with \texttt{ref} \(= u\) and \texttt{dependsOn} \(= [v_1, v_2, \ldots]\), SBOM Lens adds directed edges \(u \to v_1, u \to v_2, \ldots\). A directed edge from component \(u\) to component \(v\) means ``\(u\) depends on \(v\).''
+
+The \texttt{purl} field serves a second purpose beyond node identification. A Package URL encodes the package ecosystem, namespace, name, and version in a single string --- for example, \texttt{pkg:npm/lodash@4.17.21} or \texttt{pkg:pypi/requests@2.31.0} --- enabling cross-database vulnerability matching. OSV uses purl natively; NVD uses CPE but can be cross-referenced via purl. The purl-to-database matching pipeline is described in \autoref{cp:vuln-analysis}. The purl specification is standardised as ECMA-427 \citep{PurlSpec}.
+
+Fields not consumed by SBOM Lens in the current implementation include the \texttt{vulnerabilities[]} array (VEX documents), \texttt{services[]}, \texttt{compositions[]}, and \texttt{externalReferences[]}. Vulnerability data is sourced directly from NVD, OSV, and GitHub Security Advisories rather than from embedded VEX data; this design decision and its trade-offs are discussed in \autoref{cp:conclusion}.
+% REVIEW: this reference was unresolved (??) in the PDF; confirm the VEX trade-off discussion belongs in the Conclusion.
+
+
+\section{Software Supply Chain Security}
+\label{sec:supply-chain-security}
+
+Before describing the algorithms SBOM Lens applies, it is necessary to establish what the analysis is defending against. This section defines the software supply chain as a concept, characterises the threat categories it faces, and summarises the regulatory responses that have raised SBOM analysis from an optional practice to a compliance requirement.
+
+
+\subsection{The Software Supply Chain}
+\label{sec:software-supply-chain}
+
+The \textit{software supply chain} encompasses all the components, libraries, tools, and processes --- and the people and organisations behind them --- involved in developing, building, packaging, and distributing a software product. The supply chain metaphor is precise: each upstream dependency is a supplier whose code is inherited by all downstream consumers. Vulnerabilities, backdoors, and deprecated components in any supplier propagate transitively to every consumer in the dependency graph.
+
+The scale of this dependency is larger than most practitioners appreciate. The Synopsys Open Source Security and Risk Analysis (OSSRA) 2024 report found that 96\% of commercial codebases contain open-source components \citep{OSSRA2024}. More consequentially, direct dependencies --- those explicitly declared in a project's manifest --- represent only a fraction of the full dependency tree. Transitive dependencies, the dependencies of dependencies recursively, routinely outnumber direct dependencies by an order of magnitude in large projects.
+% REVIEW: OSSRA2024 and Synopsys2024OSSRA (Chapter 1) are the same report; merge into one key.
+
+The log4shell vulnerability (CVE-2021-44228, December 2021) illustrates the practical consequence. Apache Log4j was a transitive dependency in millions of Java applications; many of the affected development teams were entirely unaware that their software included it. A flat SBOM inventory can reveal whether Log4j is present; it cannot reveal how deeply embedded it is, how many other components depend on it, or how a vulnerability in it would propagate through the dependency graph. This structural blindspot is the gap that SBOM Lens addresses through the graph analysis methods described in \autoref{cp:network-sci}.
+
+
+\subsection{Attack Taxonomy}
+\label{sec:attack-taxonomy}
+
+Software supply chain attacks exploit the transitive trust that consumers place in upstream suppliers. \citet{Ladisa2023} provide a systematic taxonomy of open-source supply chain attacks in a peer-reviewed Systematisation of Knowledge (SoK) paper. Four primary categories are relevant to the SBOM analysis context.
+
+\textit{Build pipeline compromise} describes attacks in which an adversary infiltrates a vendor's CI/CD system or release process and injects malicious code into an otherwise legitimate software artefact. The SolarWinds SUNBURST attack (December 2020, CISA Alert AA20-352A) is the canonical example: malicious code was inserted into a signed software update and distributed to approximately 18,000 organisations, including US government agencies, via a trusted vendor relationship. The resulting component appears legitimate in any SBOM because it was produced by the authentic vendor.
+
+\textit{Compromised maintainer} attacks involve an adversary gaining legitimate commit access to an open-source project --- typically through social engineering over months or years --- and then inserting a backdoor. The xz-utils backdoor (CVE-2024-3094, CVSS 10.0, March 2024) is a recent and technically sophisticated example: a two-year campaign resulted in a backdoor narrowly avoiding widespread compromise of OpenSSH on systemd-based Linux distributions.
+
+\textit{Dependency confusion} exploits the resolution logic of package managers: an attacker publishes a malicious package on a public registry with the same name as a private internal package, causing the package manager to resolve the public (malicious) version instead of the private (legitimate) one.
+
+\textit{Typosquatting} relies on registering package names visually similar to widely-used packages --- for example, \texttt{requests-oauthlib2} alongside \texttt{requests-oauthlib} --- to capture installations triggered by typographical errors.
+
+Graph-based SBOM analysis complements detection for the latter two categories. K-core decomposition (\autoref{cp:network-sci}) reveals how deeply embedded a potentially substituted package is in the dependency network, providing a structural triage signal for incident response.
+
+
+\subsection{Policy and Standards Response}
+\label{sec:policy-response}
+
+The regulatory and standards response to supply chain attacks has accelerated since 2021. US Executive Order 14028 (May 2021) mandated SBOMs for software sold to the US federal government, with Section 10(j) providing the authoritative regulatory definition of SBOM \citep{EO14028}. EO 14144 (January 2025) reinforced and extended these requirements. The European Cyber Resilience Act, which entered into force in December 2024, requires manufacturers and developers of products with digital elements sold in the EU to document software components and address known vulnerabilities throughout the product lifecycle \citep{CRA2024}.
+
+At the standards level, the NIST Secure Software Development Framework (SP 800-218) describes secure development practices at the process level \citep{NIST_SSDF}. Supply-chain Levels for Software Artifacts (SLSA) provides a complementary four-level maturity framework for source integrity, build integrity, and provenance attestation, operationalising trust verification in CI/CD pipelines \citep{SLSA}. CISA has further published guidance on SBOM minimum elements, sharing mechanisms, and tooling recommendations. These frameworks collectively define the regulatory and operational context in which SBOM Lens operates.
+
+
+\section{Graph Theory Fundamentals}
+\label{sec:graph-theory}
+
+The dependency structure encoded in a CycloneDX SBOM is a directed graph. This section establishes the graph-theoretic vocabulary used throughout the thesis. Definitions are given mathematically, with an SBOM interpretation for each concept, and a forward-reference to the chapter where each is applied in SBOM Lens. The primary reference is \citet{CLRS4th}.
+
+
+\subsection{Directed Graphs and Basic Definitions}
+\label{sec:directed-graphs}
+
+A \textit{directed graph} (digraph) \(G = (V, E)\) consists of a vertex set \(V\) and a set of directed edges \(E \subseteq V \times V\) \citep{CLRS4th}. For SBOM Lens, \(V\) is the set of software components present in the SBOM and \(E\) represents dependency relationships: a directed edge \((u, v) \in E\) means that component \(u\) directly depends on component \(v\).
+
+The \textit{in-degree} of a vertex \(v\), written \(\deg^-(v)\), is the number of directed edges incoming to \(v\) --- equivalently, the number of components that directly depend on \(v\). The \textit{out-degree} \(\deg^+(v)\) is the number of directed edges outgoing from \(v\) --- the number of components on which \(v\) directly depends. In an SBOM dependency graph, a component with high in-degree is one that many others depend upon; a component with high out-degree has many direct dependencies of its own. Both are indicators of structural importance examined in \autoref{cp:network-sci}.
+
+The \textit{adjacency matrix} \(\mathbf{A}\) of \(G\) is an \(|V| \times |V|\) matrix where entry \(A_{ij} = 1\) if the directed edge \(i \to j\) exists and \(A_{ij} = 0\) otherwise. Real SBOM graphs are typically sparse --- a graph with thousands of components may have only tens of thousands of edges --- so \(\mathbf{A}\) is stored in compressed sparse format in practice. The adjacency matrix is the basis for eigenvector centrality analysis described in \autoref{sec:centrality}.
+
+A \textit{root node} is a vertex with in-degree zero: no other component in the SBOM depends on it. In SBOM Lens, the root node is the project being analysed, identified by \texttt{metadata.component} in the CycloneDX document. The \textit{depth} of a component is the length of the shortest directed path from the root to that component; depth-1 components are direct dependencies, depth-\(k\) components are \(k\)-hop transitive dependencies.
+
+
+\subsection{Directed Acyclic Graphs and Cycles}
+\label{sec:dags}
+
+A \textit{directed acyclic graph} (DAG) is a directed graph that contains no directed cycle \citep{CLRS4th}. Dependency graphs are ideally DAGs: if package \(A\) depends on package \(B\) which depends on \(A\), neither can be resolved without the other, and standard package managers report this as an error. A DAG admits a \textit{topological ordering} --- a linear arrangement of all vertices such that every edge goes from earlier to later --- which corresponds to a valid build or installation order.
+
+In practice, SBOMs generated by real tools may contain directed cycles, arising from circular version-pinned dependencies or artefacts of SBOM generation tooling. SBOM Lens models the dependency graph as a general digraph (not an enforced DAG) using NetworkX's \texttt{DiGraph} class. Cycles are identified by computing \textit{strongly connected components} (SCCs): a set of vertices in which every vertex is reachable from every other via directed paths. An SCC of size greater than one indicates a directed cycle. SBOM Lens flags such SCCs as a structural anomaly, applying Tarjan's algorithm in \(O(|V| + |E|)\) time \citep{CLRS4th}. This analysis is described in \autoref{cp:network-sci}.
+
+A \textit{diamond dependency} occurs when two distinct dependency paths from a common ancestor converge on the same descendant: component \(A\) depends on both \(B\) and \(C\), and both \(B\) and \(C\) depend on \(D\). If \(B\) requires \(D\)@1.0 and \(C\) requires \(D\)@2.0, a version conflict exists. Diamond dependencies are a structural risk indicator detected by SBOM Lens and reported as part of the structural risk assessment in \autoref{cp:network-sci}.
+
+
+\subsection{Connectivity and Reachability}
+\label{sec:connectivity}
+
+A directed graph is \textit{weakly connected} if the underlying undirected graph --- obtained by ignoring edge directions --- is connected. It is \textit{strongly connected} if a directed path exists between every ordered pair of vertices. Most SBOM dependency graphs are weakly connected (the components form a single ecosystem) but not strongly connected, because dependency direction is asymmetric: a library does not depend on the applications that use it \citep{CLRS4th}.
+
+The \textit{ancestor set} of a vertex \(v\), written \(\mathrm{anc}(v)\), comprises all vertices from which \(v\) is reachable via directed paths --- all components that transitively depend on \(v\). In vulnerability analysis, \(|\mathrm{anc}(v)|\) is the \textit{blast radius} of a vulnerability in \(v\): the number of components that would be affected if \(v\) were compromised. Conversely, the \textit{descendant set} \(\mathrm{desc}(v)\) comprises all vertices reachable from \(v\) --- all transitive dependencies of \(v\). SBOM Lens computes these sets using NetworkX's \texttt{nx.ancestors} and \texttt{nx.descendants} functions. Both are applied in \autoref{cp:vuln-analysis} as a vulnerability impact quantification method.
+
+Reachability is computed via breadth-first search (BFS) and depth-first search (DFS), both running in \(O(|V| + |E|)\) \citep{CLRS4th}. BFS from the root visits components in non-decreasing depth order, establishing the dependency layering of the graph. DFS is used for cycle detection and for the articulation point algorithm described in the following subsection.
+
+
+\subsection{Articulation Points and Bridge Edges}
+\label{sec:articulation-points}
+
+An \textit{articulation point} (also called a cut vertex) in a connected undirected graph is a vertex whose removal --- along with its incident edges --- increases the number of connected components \citep{CLRS4th}. In the context of a software dependency graph, an articulation point is a component whose removal would fragment the dependency network into disconnected parts. Such a component is a \textit{single point of failure}: a vulnerability, deprecation, or licence change affecting it propagates to every component in the severed partition, with no alternative dependency path.
+
+Detection is performed by a DFS-based algorithm running in \(O(|V| + |E|)\) time \citep{CLRS4th}. For each vertex \(v\), the algorithm tracks the discovery time \(\mathrm{disc}[v]\) (the DFS visit order) and the lowest discovery time reachable from the subtree rooted at \(v\) via back edges, \(\mathrm{low}[v]\). A vertex \(v\) is an articulation point if any DFS-tree child \(w\) of \(v\) satisfies \(\mathrm{low}[w] \geq \mathrm{disc}[v]\), meaning no back edge in \(w\)'s subtree can bypass \(v\) to reach \(v\)'s ancestors. Because SBOM dependency graphs are directed, SBOM Lens applies the algorithm to the undirected projection of the graph: \texttt{nx.articulation\_points(G.to\_undirected())}. The set of articulation points is a primary output of the structural risk assessment in \autoref{cp:network-sci}.
+
+A \textit{bridge} (or cut edge) is an edge whose removal disconnects the graph --- the edge-level analogue of an articulation point. SBOM Lens identifies bridge edges as structural ``firebreaks'': dependency relationships whose severance partitions the ecosystem. Bridge edges are reported alongside articulation points in \autoref{cp:network-sci}.
+
+
+\section{Network Science Concepts}
+\label{sec:network-science}
+
+Graph theory provides the foundational vocabulary for describing individual graph structures. Network science extends this vocabulary to characterise the global statistical properties of large graphs --- properties that emerge from the aggregate behaviour of thousands of nodes and edges and that cannot be read from any single vertex or edge in isolation. This section introduces the network science methods applied in \autoref{cp:network-sci}, with mathematical definitions, supply chain interpretations, and forward references. Primary references are \citet{Barabasi2016} and \citet{Newman2018}.
+
+
+\subsection{Scale-Free Networks and Power-Law Degree Distributions}
+\label{sec:scale-free}
+
+Many real-world networks --- the World Wide Web, citation networks, biological protein-interaction networks --- exhibit degree distributions that follow a \textit{power law}: \(P(k) \sim k^{-\gamma}\) where \(\gamma \in [2, 3]\) for most empirical cases \citep{Barabasi1999}. Unlike the Poisson distribution characteristic of random Erdős--Rényi graphs, a power-law distribution has no characteristic scale: a small number of nodes (``hubs'') have very high degree while the vast majority have low degree. Networks with power-law degree distributions are called \textit{scale-free networks}.
+
+Barabási and Albert (1999) demonstrated that scale-free networks emerge naturally from two mechanisms: network growth (nodes are added over time) and preferential attachment (new nodes connect to existing nodes with probability proportional to their current degree) \citep{Barabasi1999}. This ``rich get richer'' dynamic explains hub emergence. Open-source package ecosystems exhibit both mechanisms: new packages are added continuously, and new packages tend to depend on already-popular libraries.
+
+If the degree distribution of a software dependency graph follows a power law, a small number of packages serve as hubs on which a very large number of others depend. A vulnerability in a hub component has a blast radius far exceeding that of a vulnerability in a leaf node. The degree distributions of the SBOMs evaluated in \autoref{cp:evaluation} are reported empirically; hub components are identified and reported by SBOM Lens as part of the structural risk assessment in \autoref{cp:network-sci}.
+
+
+\subsection{Small-World Networks}
+\label{sec:small-world}
+
+Watts and Strogatz (1998) characterised a class of networks that simultaneously exhibit high \textit{clustering coefficient} \(C\) --- indicating tightly knit local neighbourhoods --- and short \textit{average shortest path length} \(L\) comparable to a random graph of the same size \citep{WattsStrogatz1998}. The small-world coefficient \(\sigma = (C / C_{\mathrm{rand}}) / (L / L_{\mathrm{rand}})\) quantifies this property: \(\sigma \gg 1\) indicates small-world structure.
+
+In software dependency graphs, high clustering can emerge from ecosystem sub-communities: all React-ecosystem packages may share mutual dependencies on a common set of utilities, for example, creating dense local neighbourhoods. Short average path lengths mean that a vulnerability can propagate across the entire graph in relatively few hops, even in a large SBOM.
+
+The clustering coefficient and average path length of analysed SBOMs are reported as structural metrics in \autoref{cp:evaluation}, providing empirical evidence for or against small-world structure in real dependency graphs.
+
+
+\subsection{Centrality Measures}
+\label{sec:centrality}
+
+Centrality measures quantify the structural importance of individual nodes in a graph, each from a different perspective on what ``importance'' means.
+
+\textit{Degree centrality} is the simplest: a node's degree (or normalised degree) counts its direct connections. In the directed SBOM graph, normalised in-degree centrality identifies components that many others depend on directly; normalised out-degree centrality identifies components with many direct dependencies. Both are computable in \(O(|V| + |E|)\) \citep{Barabasi2016}.
+
+\textit{Betweenness centrality} measures the fraction of shortest paths between all pairs of vertices that pass through a given vertex \(v\):
+\[
+    C_B(v) = \sum_{s \neq v \neq t} \frac{\sigma_{st}(v)}{\sigma_{st}}
+\]
+where \(\sigma_{st}\) is the total number of shortest paths from \(s\) to \(t\) and \(\sigma_{st}(v)\) is the number of those paths passing through \(v\). High betweenness identifies relay nodes --- bottlenecks through which dependency resolution paths are routed. The Brandes algorithm computes betweenness centrality in \(O(|V| \cdot |E|)\) \citep{Barabasi2016}.
+
+The \textit{HITS algorithm} (Hyperlink-Induced Topic Search, Kleinberg 1999) defines two mutually reinforcing per-node scores \citep{Kleinberg1999}. The \textit{hub score} of a node is proportional to the sum of the authority scores of the nodes it points to; the \textit{authority score} is proportional to the sum of the hub scores of nodes pointing to it. In an SBOM dependency graph, high-authority components are fundamental libraries (widely depended upon by hub components); high-hub components are aggregators that depend on many authoritative libraries. HITS scores are computed iteratively until convergence and applied in \autoref{cp:network-sci}.
+
+\textit{Eigenvector centrality} assigns each node a score proportional to the sum of its neighbours' scores, solved as the leading eigenvector of the adjacency matrix \(\mathbf{A}\). It accounts for the quality as well as the quantity of a node's connections: being depended upon by important components counts more than being depended upon by peripheral ones.
+
+
+\subsection{Community Detection and Modularity}
+\label{sec:community-detection}
+
+A \textit{community} (or module) is a subgraph that is more densely connected internally than it is to the rest of the graph \citep{Barabasi2016}. In software dependency graphs, communities correspond naturally to ecosystem sub-communities: all packages from the same framework, or all packages serving the same functional role, tend to depend on each other more than on packages from a different ecosystem.
+
+Community quality is quantified by \textit{modularity} \(Q\):
+\[
+    Q = \frac{1}{2m} \sum_{ij} \left[ A_{ij} - \frac{k_i k_j}{2m} \right] \delta(c_i, c_j)
+\]
+where \(m = |E|\), \(k_i\) is the degree of node \(i\), and \(\delta(c_i, c_j) = 1\) if and only if nodes \(i\) and \(j\) belong to the same community. Modularity compares the density of intra-community edges against the expectation under a random null model with the same degree sequence; values above approximately \(0.3\) are generally considered to indicate meaningful community structure \citep{Barabasi2016}.
+
+The \textit{Louvain algorithm} (Blondel et al., 2008) is a two-phase greedy modularity optimisation \citep{Blondel2008}. In the first phase, each node is assigned to the community of one of its neighbours that maximises the local modularity gain. In the second phase, all nodes in a community are aggregated into a single super-node, and the process repeats on the reduced graph. The algorithm terminates when no further modularity gain is possible. Its practical complexity is \(O(n \log n)\), making it tractable on large SBOM graphs. SBOM Lens applies the Louvain algorithm to the undirected projection of the dependency graph and reports the resulting community structure in \autoref{cp:network-sci}.
+
+From a security perspective, detected communities reveal which components form tightly coupled subsystems. A vulnerability that enters one high-modularity community tends to spread within it, contained by the sparse inter-community edges. Communities with many inter-community connections are higher-risk propagation bridges.
+
+
+\subsection{K-Core Decomposition}
+\label{sec:kcore}
+
+The \textit{\(k\)-core} of a graph is the maximal induced subgraph in which every vertex has degree at least \(k\) within that subgraph \citep{Batagelj2003}. The \textit{coreness} (or core number) of a vertex \(v\) is the largest \(k\) such that \(v\) belongs to the \(k\)-core. Coreness is a measure of how deeply embedded a component is in the dependency network.
+
+K-core decomposition is computed by the shell-peeling algorithm of Batagelj and Zaversnik (2003), which runs in \(O(|E|)\) time \citep{Batagelj2003}. The algorithm iteratively removes all vertices with degree less than 1 (the 0-shell), then all vertices with degree less than 2 (the 1-shell), and so on, until no vertices remain. The innermost core --- the subgraph with maximum coreness \(k_{\max}\) --- is the architectural backbone of the dependency network: components that are mutually highly interconnected and collectively difficult to remove.
+
+In the supply chain context, high-coreness components are the most entrenched in the dependency network. They are depended upon by many others (high in-degree) and themselves depend on many others (high out-degree). A vulnerability in a high-core component has maximum blast radius and maximum replacement difficulty: replacing it requires finding an alternative that satisfies all components in the inner core simultaneously. SBOM Lens computes coreness using \texttt{nx.core\_number(G)} and reports the maximum coreness and the composition of the innermost core. This analysis is applied in \autoref{cp:network-sci}.
+
+
+\subsection{Propagation Modelling --- Future Directions}
+\label{sec:propagation-modelling}
+
+Graph-based vulnerability analysis can be extended beyond the structural metrics described above to include \textit{propagation modelling} --- explicitly simulating how a compromise spreads through the dependency network over time. Epidemic models borrowed from epidemiology, such as the SIR (Susceptible--Infected--Recovered) framework \citep{PastorSatorras2001}, have been applied to software dependency graphs to estimate the fraction of components that would be affected by a single-component compromise, using the graph's spectral radius as the key parameter governing spread. Similarly, graph-level structural fingerprinting via Weisfeiler--Lehman hashing can enable change detection between SBOM versions without full graph comparison.
+
+These techniques represent a natural extension of the SBOM Lens analysis pipeline but are outside the scope of the current work. SBOM Lens focuses on static structural risk assessment --- identifying high-risk components from the graph topology and vulnerability overlay --- rather than dynamic propagation simulation. Propagation modelling is identified as a direction for future work in \autoref{cp:conclusion}.
+% REVIEW: Section 4.1.3 says the backend already implements spectral radius estimation and an epidemic
+% propagation model (/{id}/epidemic endpoint). Decide whether propagation is in scope (Chapter 6) or future work.
+
+
+\section{Vulnerability Databases}
+\label{sec:vuln-databases}
+
+SBOM Lens overlays vulnerability data on the dependency graph to identify which components carry known security risks and to quantify the severity of those risks. This section defines the three databases from which SBOM Lens sources vulnerability data --- CVE/NVD, OSV, and GitHub Security Advisories --- and establishes the CVSS v3.1 scoring system used to quantify severity. Definitions here are referenced without re-explanation in \autoref{cp:vuln-analysis}.
+
+
+\subsection{CVE and the National Vulnerability Database}
+\label{sec:cve-nvd}
+
+Common Vulnerabilities and Exposures (CVE) is a programme maintained by MITRE (funded by CISA and the US government) that assigns unique identifiers to publicly disclosed software vulnerabilities \citep{MITRE_CVE}. A CVE ID takes the form \texttt{CVE-<YEAR>-<SEQUENCE>}, for example \texttt{CVE-2021-44228} for the log4shell vulnerability. Each CVE entry provides a standardised description, a list of affected products, references to public advisories and patches, and severity scores. CVE is the canonical cross-database identifier: entries in NVD, OSV, and GitHub Security Advisories all reference CVE IDs when applicable, enabling deduplication across sources.
+
+The NIST National Vulnerability Database (NVD) enriches CVE entries with CVSS base scores (versions 2.0, 3.x, and 4.0), Common Platform Enumeration (CPE) product matching strings, and categorical severity ratings \citep{NVD}. NVD provides the authoritative CVSS v3.1 base scores for most published CVEs and is the primary reference for severity data in the security industry.
+
+SBOM Lens queries NVD via its REST API v2.0 (endpoint \texttt{/rest/json/cves/2.0} for CVE lookup). NVD is used as a secondary source after OSV because NVD's primary product identifier is CPE rather than purl, requiring a name-and-version mapping step that introduces matching imprecision. The CPE format, \texttt{cpe:2.3:a:<vendor>:<product>:<version>:...}, is less precise for open-source packages than purl-based matching: the same package may have multiple CPE strings or none at all. This limitation is discussed in \autoref{cp:vuln-analysis}.
+
+
+\subsection{Open Source Vulnerabilities (OSV)}
+\label{sec:osv}
+
+The Open Source Vulnerabilities (OSV) database is a distributed vulnerability database designed natively for open-source ecosystems \citep{OSV}. Its schema, maintained by the OpenSSF, defines version range bounds using \texttt{introduced} and \texttt{fixed} fields rather than fixed version lists, enabling precise matching against any version in a given range. OSV aggregates vulnerability data from over fifty upstream sources including RustSec, PyPI advisories, npm advisories, the GitHub Advisory Database, the Debian Security Tracker, and the Alpine Security Database.
+
+Each OSV entry carries an \texttt{aliases} field that cross-references CVE IDs and GHSA identifiers, enabling deduplication across sources. OSV's query API (\texttt{/v1/query}) accepts a package purl directly, making it the most precise source for open-source component vulnerability matching and the primary vulnerability source in SBOM Lens. The integration pipeline is described in \autoref{cp:vuln-analysis}.
+
+
+\subsection{GitHub Security Advisories}
+\label{sec:ghsa}
+
+The GitHub Advisory Database is a curated collection of security advisories for open-source packages, using GHSA identifiers in the format \texttt{GHSA-xxxx-xxxx-xxxx} \citep{GHSA}. Its strongest ecosystem coverage is for npm (JavaScript), PyPI (Python), RubyGems, Maven, NuGet (.NET), Go, and Rust. GitHub advisories are published in OSV format and are therefore aggregated by the OSV database.
+
+Because GHSA advisories propagate to OSV, querying OSV subsumes most GHSA coverage. SBOM Lens additionally queries GHSA directly via GitHub's GraphQL API for npm and PyPI packages to capture advisories published on GitHub before they have propagated to the OSV aggregation pipeline, exploiting the recency advantage for those two ecosystems.
+
+The three-source integration --- NVD, OSV, and GHSA --- is a deliberate design choice to maximise vulnerability coverage across package ecosystems and version ranges. Findings from all three sources are deduplicated using CVE ID as the primary key; where the same CVE appears in multiple sources, the highest severity score is retained. The deduplication logic and its trade-offs are presented in full in \autoref{cp:vuln-analysis}.
+% REVIEW: Section 5.2.2 says cross-source severity merging is NOT implemented (first-written record wins)
+% and the dedup key is (cveId, purl). Align this paragraph with Chapter 5.
+
+
+\subsection{CVSS v3.1 Scoring System}
+\label{sec:cvss}
+
+The Common Vulnerability Scoring System (CVSS) v3.1 is the standard for quantifying the severity of software vulnerabilities \citep{CVSS31}. The specification is maintained by FIRST.org (Forum of Incident Response and Security Teams). CVSS produces a numeric base score on the interval \([0.0, 10.0]\) from a set of standardised metrics that characterise the intrinsic properties of the vulnerability, assessed at the time of publication.
+
+The base metric group comprises eight metrics divided into two sub-groups plus a Scope modifier. The four \textit{exploitability metrics} characterise how the vulnerability can be accessed: \textbf{Attack Vector} (AV: Network, Adjacent, Local, or Physical), \textbf{Attack Complexity} (AC: Low or High), \textbf{Privileges Required} (PR: None, Low, or High), and \textbf{User Interaction} (UI: None or Required). The \textbf{Scope} modifier (S: Unchanged or Changed) indicates whether a successful exploit can affect components beyond the vulnerable component --- for example, when a container escape vulnerability affects the host operating system. The three \textit{impact metrics} characterise the effect on the CIA triad of the affected system: \textbf{Confidentiality Impact} (C), \textbf{Integrity Impact} (I), and \textbf{Availability Impact} (A), each rated None, Low, or High \citep{CVSS31}.
+
+The base score is computed from these eight metrics via the following formula \citep{CVSS31}. Let \(\mathrm{ISS} = 1 - [(1 - C)(1 - I)(1 - A)]\) where \(C\), \(I\), and \(A\) are numerical values from the specification's lookup table. The impact sub-score is:
+\[
+    \mathrm{Impact} =
+    \begin{cases}
+        6.42 \times \mathrm{ISS} & \text{if Scope Unchanged} \\
+        7.52 \times (\mathrm{ISS} - 0.029) - 3.25 \times (\mathrm{ISS} - 0.02)^{15} & \text{if Scope Changed}
+    \end{cases}
+\]
+The exploitability sub-score is \(\mathrm{Exploitability} = 8.22 \times \mathrm{AV} \times \mathrm{AC} \times \mathrm{PR} \times \mathrm{UI}\), where each metric takes its numerical value from the lookup table. The base score is then \(\mathrm{BaseScore} = \min(\mathrm{Impact} + \mathrm{Exploitability},\ 10)\), rounded up to the nearest \(0.1\). If \(\mathrm{Impact} = 0\), the base score is \(0.0\) regardless of exploitability.
+% REVIEW: this is the Scope Unchanged case only. For Scope Changed the specification uses
+% min(1.08 x (Impact + Exploitability), 10), as Section 5.3.2 applies. State both cases here.
+
+FIRST.org defines five severity bands: None (\(0.0\)), Low (\(0.1\)--\(3.9\)), Medium (\(4.0\)--\(6.9\)), High (\(7.0\)--\(8.9\)), and Critical (\(9.0\)--\(10.0\)). The log4shell vulnerability (CVE-2021-44228) illustrates the maximum score: its vector string \texttt{CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H} yields \(\mathrm{BaseScore} = 10.0\) because the vulnerability is network-exploitable without authentication, affects scope beyond the vulnerable component, and has maximum confidentiality, integrity, and availability impact. SBOM Lens uses these severity bands to colour-code vulnerable nodes on the SBOM graph --- red for Critical and High, orange for Medium, yellow for Low --- as described in \autoref{cp:vuln-analysis}.
+% REVIEW: Section 5.5.1 / Figure 5.1 use red = CRITICAL, orange = HIGH, yellow = MEDIUM, green-yellow = LOW.
+
+The Exploit Prediction Scoring System (EPSS, also maintained by FIRST.org) complements CVSS by estimating the probability that a CVE will be exploited in the wild within thirty days, using a machine-learning model trained on observed exploitation data \citep{EPSS}. While CVSS measures the potential severity of a vulnerability if exploited, EPSS measures the likelihood of exploitation. SBOM Lens does not currently integrate EPSS scores; this is noted as a limitation and a direction for future work in \autoref{cp:conclusion}.
