@@ -29,8 +29,7 @@ Three machine-readable SBOM formats exist in practice: CycloneDX (OWASP, origina
 
 SPDX was created primarily for licence compliance. Its relationship model is broad --- it defines approximately twenty-five relationship types including \texttt{DESCRIBES}, \texttt{CONTAINS}, \texttt{DEPENDS\_ON}, \texttt{GENERATED\_FROM}, and \texttt{OPTIONAL\_DEPENDENCY\_OF} --- but the dependency relationship is represented implicitly as one type among many, and SPDX 2.3 has no native structure for embedding vulnerability data. SPDX is widely adopted for licence auditing workflows but does not natively support the graph structure required for the analysis SBOM Lens performs.
 
-CycloneDX was designed from the outset for security use cases: vulnerability tracking, dependency analysis, and supply chain integrity verification. Its key structural advantage over SPDX is the explicit separation of components and their dependency relationships into two distinct top-level arrays. A CycloneDX document's \texttt{dependencies[]} array makes the dependency graph unambiguous: each entry declares a component and its set of direct dependents, with no inference required. CycloneDX 1.6 added native support for VEX (Vulnerability Exploitability eXchange) documents via a \texttt{vulnerabilities[]} array. The current version, CycloneDX 1.7, was published in 2025 and is standardised as ECMA-424 \citep{OWASPCycloneDX}.
-% REVIEW: each dependencies[] entry lists the component's direct *dependencies* (dependsOn), not its "dependents".
+CycloneDX was designed from the outset for security use cases: vulnerability tracking, dependency analysis, and supply chain integrity verification. Its key structural advantage over SPDX is the explicit separation of components and their dependency relationships into two distinct top-level arrays. A CycloneDX document's \texttt{dependencies[]} array makes the dependency graph unambiguous: each entry declares a component (\texttt{ref}) and the set of components it directly depends on (\texttt{dependsOn}), with no inference required. CycloneDX 1.6 added native support for VEX (Vulnerability Exploitability eXchange) documents via a \texttt{vulnerabilities[]} array. The current version, CycloneDX 1.7, was published in 2025 and is standardised as ECMA-424 \citep{OWASPCycloneDX}.
 
 SWID Tags are excluded from consideration for SBOM Lens because they lack a standardised dependency relationship field; they identify installed software but do not encode the graph structure between components.
 
@@ -49,7 +48,6 @@ The directed dependency graph is constructed directly from these fields. The ver
 The \texttt{purl} field serves a second purpose beyond node identification. A Package URL encodes the package ecosystem, namespace, name, and version in a single string --- for example, \texttt{pkg:npm/lodash@4.17.21} or \texttt{pkg:pypi/requests@2.31.0} --- enabling cross-database vulnerability matching. OSV uses purl natively; NVD uses CPE but can be cross-referenced via purl. The purl-to-database matching pipeline is described in \autoref{cp:vuln-analysis}. The purl specification is standardised as ECMA-427 \citep{PurlSpec}.
 
 Fields not consumed by SBOM Lens in the current implementation include the \texttt{vulnerabilities[]} array (VEX documents), \texttt{services[]}, \texttt{compositions[]}, and \texttt{externalReferences[]}. Vulnerability data is sourced directly from NVD, OSV, and GitHub Security Advisories rather than from embedded VEX data; this design decision and its trade-offs are discussed in \autoref{cp:conclusion}.
-% REVIEW: this reference was unresolved (??) in the PDF; confirm the VEX trade-off discussion belongs in the Conclusion.
 
 
 \section{Software Supply Chain Security}
@@ -63,8 +61,7 @@ Before describing the algorithms SBOM Lens applies, it is necessary to establish
 
 The \textit{software supply chain} encompasses all the components, libraries, tools, and processes --- and the people and organisations behind them --- involved in developing, building, packaging, and distributing a software product. The supply chain metaphor is precise: each upstream dependency is a supplier whose code is inherited by all downstream consumers. Vulnerabilities, backdoors, and deprecated components in any supplier propagate transitively to every consumer in the dependency graph.
 
-The scale of this dependency is larger than most practitioners appreciate. The Synopsys Open Source Security and Risk Analysis (OSSRA) 2024 report found that 96\% of commercial codebases contain open-source components \citep{OSSRA2024}. More consequentially, direct dependencies --- those explicitly declared in a project's manifest --- represent only a fraction of the full dependency tree. Transitive dependencies, the dependencies of dependencies recursively, routinely outnumber direct dependencies by an order of magnitude in large projects.
-% REVIEW: OSSRA2024 and Synopsys2024OSSRA (Chapter 1) are the same report; merge into one key.
+The scale of this dependency is larger than most practitioners appreciate. The Synopsys Open Source Security and Risk Analysis (OSSRA) 2024 report found that 96\% of commercial codebases contain open-source components \citep{Synopsys2024OSSRA}. More consequentially, direct dependencies --- those explicitly declared in a project's manifest --- represent only a fraction of the full dependency tree. Transitive dependencies, the dependencies of dependencies recursively, routinely outnumber direct dependencies by an order of magnitude in large projects.
 
 The log4shell vulnerability (CVE-2021-44228, December 2021) illustrates the practical consequence. Apache Log4j was a transitive dependency in millions of Java applications; many of the affected development teams were entirely unaware that their software included it. A flat SBOM inventory can reveal whether Log4j is present; it cannot reveal how deeply embedded it is, how many other components depend on it, or how a vulnerability in it would propagate through the dependency graph. This structural blindspot is the gap that SBOM Lens addresses through the graph analysis methods described in \autoref{cp:network-sci}.
 
@@ -211,14 +208,12 @@ K-core decomposition is computed by the shell-peeling algorithm of Batagelj and 
 In the supply chain context, high-coreness components are the most entrenched in the dependency network. They are depended upon by many others (high in-degree) and themselves depend on many others (high out-degree). A vulnerability in a high-core component has maximum blast radius and maximum replacement difficulty: replacing it requires finding an alternative that satisfies all components in the inner core simultaneously. SBOM Lens computes coreness using \texttt{nx.core\_number(G)} and reports the maximum coreness and the composition of the innermost core. This analysis is applied in \autoref{cp:network-sci}.
 
 
-\subsection{Propagation Modelling --- Future Directions}
+\subsection{Spectral Analysis and Propagation Modelling}
 \label{sec:propagation-modelling}
 
-Graph-based vulnerability analysis can be extended beyond the structural metrics described above to include \textit{propagation modelling} --- explicitly simulating how a compromise spreads through the dependency network over time. Epidemic models borrowed from epidemiology, such as the SIR (Susceptible--Infected--Recovered) framework \citep{PastorSatorras2001}, have been applied to software dependency graphs to estimate the fraction of components that would be affected by a single-component compromise, using the graph's spectral radius as the key parameter governing spread. Similarly, graph-level structural fingerprinting via Weisfeiler--Lehman hashing can enable change detection between SBOM versions without full graph comparison.
+Graph-based vulnerability analysis can be extended beyond the structural metrics described above in two ways. The first is \textit{static spectral analysis}: the spectral radius \(\lambda_1\) of the adjacency matrix governs how readily a contagion spreads over a network, with \(1/\lambda_1\) acting as its epidemic threshold \citep{PastorSatorras2001}, and the corresponding leading eigenvector (the eigenvector centrality introduced above) gives each node's share of that spread potential. The second is \textit{propagation simulation}: running a dynamic epidemic model, such as the SIR (Susceptible--Infected--Recovered) framework, over the dependency network through time to estimate the fraction of components a single compromise would eventually reach.
 
-These techniques represent a natural extension of the SBOM Lens analysis pipeline but are outside the scope of the current work. SBOM Lens focuses on static structural risk assessment --- identifying high-risk components from the graph topology and vulnerability overlay --- rather than dynamic propagation simulation. Propagation modelling is identified as a direction for future work in \autoref{cp:conclusion}.
-% REVIEW: Section 4.1.3 says the backend already implements spectral radius estimation and an epidemic
-% propagation model (/{id}/epidemic endpoint). Decide whether propagation is in scope (Chapter 6) or future work.
+SBOM Lens adopts the first and leaves the second out of scope. The spectral radius, the epidemic threshold, and a per-component spectral exposure score are computed statically from the graph and are presented in \autoref{cp:network-sci}; no contagion is simulated. Propagation simulation is identified as a direction for future work in \autoref{cp:conclusion}.
 
 
 \section{Vulnerability Databases}
@@ -252,9 +247,7 @@ The GitHub Advisory Database is a curated collection of security advisories for 
 
 Because GHSA advisories propagate to OSV, querying OSV subsumes most GHSA coverage. SBOM Lens additionally queries GHSA directly via GitHub's GraphQL API for npm and PyPI packages to capture advisories published on GitHub before they have propagated to the OSV aggregation pipeline, exploiting the recency advantage for those two ecosystems.
 
-The three-source integration --- NVD, OSV, and GHSA --- is a deliberate design choice to maximise vulnerability coverage across package ecosystems and version ranges. Findings from all three sources are deduplicated using CVE ID as the primary key; where the same CVE appears in multiple sources, the highest severity score is retained. The deduplication logic and its trade-offs are presented in full in \autoref{cp:vuln-analysis}.
-% REVIEW: Section 5.2.2 says cross-source severity merging is NOT implemented (first-written record wins)
-% and the dedup key is (cveId, purl). Align this paragraph with Chapter 5.
+The three-source integration --- NVD, OSV, and GHSA --- is a deliberate design choice to maximise vulnerability coverage across package ecosystems and version ranges. Findings from all three sources are deduplicated on the pair (CVE ID, purl): a CVE is recorded once per affected component, and when the same pair is returned by more than one source the first record written is kept, without merging severity scores across sources. The deduplication logic and its trade-offs are presented in full in \autoref{cp:vuln-analysis}.
 
 
 \subsection{CVSS v3.1 Scoring System}
@@ -272,11 +265,16 @@ The base score is computed from these eight metrics via the following formula \c
         7.52 \times (\mathrm{ISS} - 0.029) - 3.25 \times (\mathrm{ISS} - 0.02)^{15} & \text{if Scope Changed}
     \end{cases}
 \]
-The exploitability sub-score is \(\mathrm{Exploitability} = 8.22 \times \mathrm{AV} \times \mathrm{AC} \times \mathrm{PR} \times \mathrm{UI}\), where each metric takes its numerical value from the lookup table. The base score is then \(\mathrm{BaseScore} = \min(\mathrm{Impact} + \mathrm{Exploitability},\ 10)\), rounded up to the nearest \(0.1\). If \(\mathrm{Impact} = 0\), the base score is \(0.0\) regardless of exploitability.
-% REVIEW: this is the Scope Unchanged case only. For Scope Changed the specification uses
-% min(1.08 x (Impact + Exploitability), 10), as Section 5.3.2 applies. State both cases here.
+The exploitability sub-score is \(\mathrm{Exploitability} = 8.22 \times \mathrm{AV} \times \mathrm{AC} \times \mathrm{PR} \times \mathrm{UI}\), where each metric takes its numerical value from the lookup table. The base score is then
+\[
+    \mathrm{BaseScore} =
+    \begin{cases}
+        \min(\mathrm{Impact} + \mathrm{Exploitability},\ 10) & \text{if Scope Unchanged} \\
+        \min(1.08 \times (\mathrm{Impact} + \mathrm{Exploitability}),\ 10) & \text{if Scope Changed}
+    \end{cases}
+\]
+rounded up to the nearest \(0.1\). If \(\mathrm{Impact} = 0\), the base score is \(0.0\) regardless of exploitability.
 
-FIRST.org defines five severity bands: None (\(0.0\)), Low (\(0.1\)--\(3.9\)), Medium (\(4.0\)--\(6.9\)), High (\(7.0\)--\(8.9\)), and Critical (\(9.0\)--\(10.0\)). The log4shell vulnerability (CVE-2021-44228) illustrates the maximum score: its vector string \texttt{CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H} yields \(\mathrm{BaseScore} = 10.0\) because the vulnerability is network-exploitable without authentication, affects scope beyond the vulnerable component, and has maximum confidentiality, integrity, and availability impact. SBOM Lens uses these severity bands to colour-code vulnerable nodes on the SBOM graph --- red for Critical and High, orange for Medium, yellow for Low --- as described in \autoref{cp:vuln-analysis}.
-% REVIEW: Section 5.5.1 / Figure 5.1 use red = CRITICAL, orange = HIGH, yellow = MEDIUM, green-yellow = LOW.
+FIRST.org defines five severity bands: None (\(0.0\)), Low (\(0.1\)--\(3.9\)), Medium (\(4.0\)--\(6.9\)), High (\(7.0\)--\(8.9\)), and Critical (\(9.0\)--\(10.0\)). The log4shell vulnerability (CVE-2021-44228) illustrates the maximum score: its vector string \texttt{CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H} yields \(\mathrm{BaseScore} = 10.0\) because the vulnerability is network-exploitable without authentication, affects scope beyond the vulnerable component, and has maximum confidentiality, integrity, and availability impact. SBOM Lens uses these severity bands to colour-code vulnerable nodes on the SBOM graph --- red for Critical, orange for High, yellow for Medium, and green-yellow for Low --- as described in \autoref{cp:vuln-analysis}.
 
 The Exploit Prediction Scoring System (EPSS, also maintained by FIRST.org) complements CVSS by estimating the probability that a CVE will be exploited in the wild within thirty days, using a machine-learning model trained on observed exploitation data \citep{EPSS}. While CVSS measures the potential severity of a vulnerability if exploited, EPSS measures the likelihood of exploitation. SBOM Lens does not currently integrate EPSS scores; this is noted as a limitation and a direction for future work in \autoref{cp:conclusion}.

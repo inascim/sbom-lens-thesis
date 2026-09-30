@@ -1,17 +1,29 @@
 \chapter[Structural Risk and Graph Analysis]{Structural Risk and Graph Analysis}
 \label{cp:network-sci}
 
-% TODO: chapter not yet written. Scope promised by Section 1.6 and forward references in Chapters 2, 4 and 5:
-%   structural risk assessment -- articulation points and bridges, Shannon entropy of the degree
-%   distribution, diamond dependency detection, cycles (SCCs), k-core decomposition;
-%   graph analysis -- Louvain community detection, HITS, eigenvector centrality;
-%   open decision: spectral radius / epidemic model (implemented in backend, framed as future work in 2.4.6).
+% TODO: chapter not yet written. Decisions: docs/adr/0001; vocabulary: CONTEXT.md.
+% Central claim: a component's position in the dependency graph carries risk information that
+%   flat-inventory analysis cannot express; graph measures make it visible at three scales.
+% Organise by scale, not by algorithm:
+%   Component scale  -- articulation points and bridges, HITS hub/authority, spectral exposure score
+%                       (eigenvector centrality; never "R0"), k-core number; one paragraph on the
+%                       optimizer's edge rankings as an application of the spectral score.
+%   Cluster scale    -- Louvain communities, bow-tie decomposition, rich-club.
+%   Whole-graph scale-- spectral radius and epidemic threshold 1/lambda_1, degree entropy, cycles/SCCs,
+%                       version conflicts (not "diamonds"), namespace concentration, power-law fit,
+%                       small-world (C, L). Define briefly here; values are reported in Chapter 7 (RQ1).
+% Out: blast radius and dominated sets (Chapter 5, refer back); unmaintained check (short note in
+%   Chapter 5); WL fingerprinting / SBOM comparison (left out of the thesis); propagation simulation
+%   (future work).
 
-\section{Structural Risk Assessment}
-\label{sec:structural-risk}
-
-\section{Graph Analysis}
-\label{sec:graph-analysis}
+\section{Component Scale}
+\label{sec:component-scale}
 
 \subsection{HITS Hub and Authority Scores}
 \label{sec:hits}
+
+\section{Cluster Scale}
+\label{sec:cluster-scale}
+
+\section{Whole-Graph Scale}
+\label{sec:structural-risk}

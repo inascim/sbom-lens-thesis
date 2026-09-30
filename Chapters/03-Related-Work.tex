@@ -93,4 +93,9 @@ As introduced in \autoref{sec:motivation}, the log4shell vulnerability exposed t
 \label{sec:gap-analysis}
 
 The survey above reveals four capabilities absent from current tooling and the research literature; SBOM Lens addresses each of these gaps. The evidence for each absence is grounded in \autoref{tab:sbom-tools} and the research clusters surveyed in \autoref{sec:graph-security-research}.
-% TODO: section was a stub in the PDF. Name the four gaps and map each to a chapter.
+% TODO: section was a stub in the PDF. Write this first, then write 3.2 and 3.3 to set up these gaps. Agreed gaps:
+%   (1) existing tools (Dependency-Track, grype, syft) do flat-inventory analysis with no within-SBOM graph structure -> Ch4;
+%   (2) no tool overlays vulnerabilities on the graph with blast radius and dominated sets -> Ch5;
+%   (3) no structural/spectral prioritisation beyond CVSS -> Ch6;
+%   (4) graph research works at ecosystem scale, not on a single project's SBOM -> Ch6/Ch7.
+%   The log4shell case study (3.3) should quantify blast radius and chokepoints.

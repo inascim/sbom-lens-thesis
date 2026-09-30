@@ -1,0 +1,3 @@
+# Dominance is computed from the root, not from the vulnerable component
+
+The impact endpoint in `../sbom-lens/backend/routers/impact.py` called `immediate_dominators(G, node_id)` starting from the vulnerable component. Because edges point from consumer to dependency, that returns the vulnerable component's own exclusive dependencies — not the components that would be cut off from the application. We chose to change the code instead of the thesis: dominance is computed from the **root** (a virtual root when there are several), and a component's **dominated set** is its subtree in that dominator tree. That is what makes the "chokepoint" argument in Section 5.5 true. A reader comparing against older commits will see a different computation; this is deliberate.

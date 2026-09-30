@@ -1,6 +1,35 @@
 \chapter[Evaluation]{Evaluation}
 \label{cp:evaluation}
 
-% TODO: chapter not yet written. Promised by Chapters 1-2: real-world open-source SBOM dataset;
-%   graph-level metrics (degree distribution / power law, clustering coefficient, average path length);
-%   node-level metrics; vulnerability findings; structural analysis results; discussion.
+% TODO: chapter not yet written. Decisions: docs/adr/0003; vocabulary: CONTEXT.md.
+% Write now: dataset and pipeline, method and RQs, threats to validity. Results wait for data.
+% Dataset: ~30 projects each for npm, PyPI and Maven, pinned to 2-3-year-old releases, SBOMs from cdxgen;
+%   kept only if >=1 known vulnerability and <=1000 components. Vulnerabilities from NVD+OSV+GHSA through
+%   the tool's own vulnerabilityAPI.js. Data and pipeline in the sbom-lens-eval repo (GitHub + Zenodo).
+% RQ1 topology/profile: size, depth, direct vs transitive, entropy, SCCs, version conflicts, power-law,
+%   small-world, bow-tie, rich-club.
+% RQ2 divergence from flat-inventory analysis: structural vs CVSS-only ranking (Kendall tau, top-k overlap).
+% RQ3 hidden exposure: transitive-only vulnerable components, vulnerable chokepoints, vulnerability reach.
+% No RQ4; a short performance paragraph (time vs graph size) instead.
+% Threats to validity: selection bias from both filters, vulnerability-query date, cdxgen accuracy.
+
+\section{Dataset and Collection Pipeline}
+\label{sec:eval-dataset}
+
+\section{Method and Research Questions}
+\label{sec:eval-method}
+
+\section{RQ1: Dependency Graph Profile}
+\label{sec:eval-rq1}
+
+\section{RQ2: Divergence from Flat-Inventory Analysis}
+\label{sec:eval-rq2}
+
+\section{RQ3: Hidden Exposure and Vulnerability Reach}
+\label{sec:eval-rq3}
+
+\section{Performance}
+\label{sec:eval-performance}
+
+\section{Threats to Validity}
+\label{sec:eval-threats}
