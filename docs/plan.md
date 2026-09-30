@@ -10,9 +10,10 @@ Agreed order of work (2026-09-30). Decisions behind each step are in `docs/adr/`
    - [ ] Retake Figure 5.1 with the four severity colours.
 2. **`sbom-lens-eval` pipeline** (ADR 0003, ADR 0004)
    - [x] `sbom-lens` prep: severity from the CVSS v3 vector, else the GHSA label, else UNKNOWN; remove the unused NVD/GHSA code; correct Ch2/Ch5 to OSV only.
-   - [ ] New local repo `../sbom-lens-eval`: Python orchestrator driving the running backend over HTTP, plus a Node script that imports the real `vulnerabilityAPI.js` from a pinned `sbom-lens` checkout; cdxgen pinned.
-   - [ ] Candidates: GitHub search (JavaScript/TypeScript, by stars) → latest release tag ≤ 2024-03-31 → committed lockfile, not a workspaces monorepo → cdxgen `--required-only` → ≥1 known vulnerability, ≤1000 components. Stop at ~90 accepted; every rejection logged in `skipped.csv`.
-   - [ ] Outputs: one JSON per SBOM (all metrics, `/impact` for each vulnerable node, timings), a combined CSV, the query date and the pinned commits.
+   - [x] New local repo `../sbom-lens-eval`: Python orchestrator driving the running backend over HTTP, plus a Node script that imports the real `vulnerabilityAPI.js` from a pinned `sbom-lens` checkout; cdxgen pinned.
+   - [x] Candidates: GitHub search (JavaScript/TypeScript, by stars) → latest release tag ≤ 2024-03-31 → committed lockfile, not a workspaces monorepo → cdxgen `--required-only` → ≥1 known vulnerability, ≤1000 components. Stop at ~90 accepted; every rejection logged in `skipped.csv`.
+   - [x] Outputs: one JSON per SBOM (all metrics, `/impact` for each vulnerable node, timings), a combined CSV, the query date and the pinned commits.
+   - [x] Collected 2026-10-01: 90 accepted of 1,281 candidates (sbom-lens-eval 8969280).
    - [ ] Push to GitHub; Zenodo snapshot at submission.
 3. **Thesis writing** (can overlap with step 2)
    - [x] Ch6: component, cluster and whole-graph scales.
