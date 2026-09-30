@@ -1,43 +1,169 @@
 \chapter[Evaluation]{Evaluation}
 \label{cp:evaluation}
 
-% TODO: chapter not yet written. Decisions: docs/adr/0003, 0004; vocabulary: CONTEXT.md.
-% Write now: dataset and pipeline, method and RQs, threats to validity. Results wait for data.
-% Dataset: ~90 npm (JavaScript/TypeScript) repositories from GitHub search by stars; latest release tag
-%   <= 2024-03-31; committed lockfile; no workspaces monorepos; production dependency graph (cdxgen
-%   derived by reachability, ADR 0004); >=100 stars; kept only if >=1 CRITICAL vulnerability and 50..1000 nodes;
-%   all severities kept for analysis. Every rejection is logged
-%   (selection funnel). Vulnerabilities from OSV through the tool's own vulnerabilityAPI.js; severity band
-%   UNKNOWN is excluded from CVSS rankings and its count reported. Data and pipeline in sbom-lens-eval.
-% RQ1 profile (median, IQR over 90 SBOMs): nodes, edges, max depth, direct vs transitive share, out-degree
-%   entropy, cycles/non-trivial SCCs, version conflicts, power-law alpha/x_min/D (where fitted), small-world
-%   sigma/C/L, bow-tie core present, max rich-club phi, spectral radius and epidemic threshold.
-% RQ2 (docs/adr/0005): per SBOM, rank vulnerable components by worst severity band vs by blast-radius size
-%   and by HITS authority; Kendall tau-b per SBOM; overlap of CRITICAL set with equally many top structural.
-% RQ3 (all severities): transitive-only share of vulnerable components (depth >= 2 from impact paths);
-%   vulnerable chokepoints (non-empty dominated set) and what they dominate; vulnerability reach (share of
-%   non-root nodes inside at least one vulnerable blast radius).
-% No RQ4; a short performance paragraph (time vs graph size) instead.
-% Threats to validity: selection bias from the filters (lockfile, vulnerable, <=1k, no monorepos);
-%   npm-only external validity; OSV-only coverage; vulnerability-query date; cdxgen accuracy; UNKNOWN share.
+This chapter evaluates SBOM Lens on the production dependency graphs of 90 real npm applications. It asks three research questions, derived from the fourth research objective (\autoref{sec:objectives}): what these dependency graphs look like (RQ1), whether a structural view of their vulnerable components orders them differently from the severity ranking a flat inventory provides (RQ2), and how much of their vulnerability exposure is hidden from a flat inventory (RQ3). \autoref{sec:eval-dataset} describes how the dataset was collected, \autoref{sec:eval-method} states the research questions and the measures that answer them, \autoref{sec:eval-rq1} to \autoref{sec:eval-rq3} report the results, \autoref{sec:eval-performance} reports the analysis time, and \autoref{sec:eval-threats} discusses the threats to validity. Every number in this chapter is produced by one analysis script from the published dataset (\autoref{sec:eval-reproducibility}).
+
 
 \section{Dataset and Collection Pipeline}
 \label{sec:eval-dataset}
 
+The dataset was built by a deterministic pipeline that selects projects, generates their SBOMs, and analyses them with SBOM Lens exactly as a user would. Its design decisions are recorded in the thesis repository as architecture decision records; this section summarises them.
+
+\textbf{Candidates.} The candidates are JavaScript and TypeScript repositories on GitHub with at least 100 stars that are neither archived nor forks, retrieved through the GitHub search API most-starred first --- 21{,}915 repositories in total. The list was fixed before processing began, so every run visits the candidates in the same order.
+
+\textbf{Release.} For each candidate, the pipeline takes the latest GitHub release, excluding drafts and pre-releases, published on or before 31 March 2024. Analysing a release that is at least two and a half years old ensures that its dependencies have had time to accumulate disclosed vulnerabilities, and fixes the project to a well-defined state: the software as it was shipped at that release.
+
+\textbf{Filters.} At the release tag, a candidate is accepted only if its repository root contains a \texttt{package.json} and a committed lockfile (\texttt{package-lock.json}, \texttt{yarn.lock} or \texttt{pnpm-lock.yaml}), it is not a workspaces monorepo --- in which ``the application'' and its root are ill-defined --- and it declares at least one production dependency. A lockfile is required because it pins the entire transitive dependency tree: without one, an SBOM generator would resolve dependencies against today's registry rather than as shipped.
+
+\textbf{SBOM generation.} The repository is cloned at the tag and cdxgen~12.8.5 generates a CycloneDX SBOM from the root lockfile only, ignoring the separate lockfiles that many repositories keep in example or documentation folders. From that SBOM, the pipeline derives the \textit{production dependency graph}: the part of the graph reachable from the root through the dependencies the application declares for production (\texttt{dependencies} and \texttt{optionalDependencies}), excluding development and test dependencies, which are not shipped \citep{Pashchenko2018}. The graph is kept only if it has between 50 and 1{,}000 nodes: below 50, the whole-graph measures of \autoref{cp:network-sci} are not meaningful; above 1{,}000, the application falls outside the scale for which the evaluation was designed.
+
+\textbf{Vulnerabilities.} Vulnerabilities are obtained from OSV by running SBOM Lens's own \texttt{vulnerabilityAPI.js} under Node.js, so that the evaluation uses exactly the lookup and severity derivation the tool uses (\autoref{cp:vuln-analysis}). The queries were made on 30 September 2026. A project is accepted only if at least one of its components has a \textsc{critical} vulnerability, so that every project in the dataset contains the most serious case the evaluation is concerned with; all of its findings, whatever their severity, are kept for the analysis.
+
+\textbf{Analysis.} Each accepted SBOM is uploaded to the SBOM Lens backend at a fixed commit, which is then queried through its REST API for every whole-SBOM analysis of \autoref{cp:network-sci} and for the impact analysis (\autoref{sec:blast-radius}) of every vulnerable component.
+
+\autoref{tab:eval-funnel} shows how the candidates were filtered. The pipeline processed the candidates in order until 90 were accepted, which took 1{,}281 candidates. The largest losses are repositories without a GitHub release in the time window --- typically lists, tutorials or projects created after March 2024 --- and monorepos.
+
+\begin{table}[!htpb]
+    \centering
+    \small
+    \caption[Selection funnel of the evaluation dataset]{Selection funnel: candidates rejected at each stage, in the order the filters are applied.}
+    \label{tab:eval-funnel}
+    \begin{tabular}{lrl}
+        \toprule
+        \textbf{Stage} & \textbf{Rejected} & \textbf{Reason} \\
+        \midrule
+        Release & 490 & No release on or before 31 March 2024 \\
+        Layout & 59 & No \texttt{package.json} at the repository root \\
+        Lockfile & 135 & No committed lockfile at the release tag \\
+        Monorepo & 232 & Workspaces monorepo \\
+        Production & 103 & No production dependencies, or an empty production graph \\
+        SBOM generation & 24 & Root without dependency edges in the generated SBOM \\
+        Size & 115 & Fewer than 50 (102) or more than 1{,}000 (13) nodes \\
+        Vulnerable & 2 & No known vulnerability \\
+        Severity & 30 & Known vulnerabilities, but none \textsc{critical} \\
+        Error & 1 & Repeated GitHub API failure \\
+        \midrule
+        \textbf{Accepted} & \textbf{90} & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The 90 accepted projects are widely used applications and developer tools --- among them excalidraw, uptime-kuma, prettier, Signal Desktop, MetaMask, code-server and CyberChef. Because candidates were processed most-starred first, all have at least 10{,}968 stars (median 19{,}059). Fifty are written in TypeScript and forty in JavaScript; 53 use \texttt{package-lock.json}, 36 \texttt{yarn.lock} and one \texttt{pnpm-lock.yaml}. Most analysed releases are recent --- 51 from 2024 and 22 from 2023 --- but inactive projects contribute older ones, back to 2017. Together, the 90 graphs contain 2{,}668 vulnerable components with 8{,}868 findings: 462 \textsc{critical}, 4{,}081 \textsc{high}, 3{,}622 \textsc{medium} and 703 \textsc{low}. No finding fell in the unknown band.
+
+
 \section{Method and Research Questions}
 \label{sec:eval-method}
+
+\textbf{RQ1: What do the production dependency graphs of real npm applications look like?} RQ1 characterises the dataset with the measures of \autoref{cp:network-sci}: size, depth, the share of components the application declares directly, out-degree entropy, cycles and strongly connected components, version conflicts, the fitted power-law exponent of the in-degree distribution, the small-world coefficient with its clustering and path length, the presence of a bow-tie core, the maximum rich-club coefficient, and the spectral radius with its epidemic threshold. It establishes whether ecosystem-scale properties reported in the literature (\autoref{sec:rw-dependency-graphs}) also hold for the dependency graph of a single application.
+
+\textbf{RQ2: Does a structural view order a project's vulnerable components differently from a flat inventory?} A flat inventory shows the analyst each vulnerable component with its severity, and the natural way to prioritise is by severity band. RQ2 compares that ordering with two structural ones. For every SBOM, its vulnerable components are ranked three times: by their worst severity band (\textsc{critical} \(>\) \textsc{high} \(>\) \textsc{medium} \(>\) \textsc{low}); by the size of their blast radius, the number of components that depend on them directly or transitively; and by their HITS authority score (\autoref{sec:hits}). Agreement between the severity ranking and each structural ranking is measured with Kendall's \(\tau_b\), which accounts for the many ties that five severity bands produce: \(\tau_b = 1\) means the structural ranking orders the components exactly as the severity bands do, \(\tau_b = -1\) the reverse, and \(\tau_b \approx 0\) that the two orderings are unrelated. As a second, more practical measure, let \(k\) be the number of \textsc{critical} vulnerable components of an SBOM: the \textit{top-\(k\) overlap} is the share of those \(k\) components that are also among the \(k\) components ranked highest by the structural measure. It answers the question: if the analyst had only the time to look at \(k\) components, how many of the ones severity would point to would the structural view also point to?
+
+\textbf{RQ3: How much vulnerability exposure is hidden from a flat inventory?} RQ3 measures three kinds of exposure that a list of components and CVEs does not show. The \textit{transitive-only share} is the share of vulnerable components that the application does not declare directly, identified from the shortest dependency path from the root returned by the impact analysis. A \textit{vulnerable chokepoint} is a vulnerable component whose dominated set is non-empty (\autoref{sec:dominator-tree}): part of the application can be reached only through it; RQ3 reports how many vulnerable components are chokepoints and what share of the graph they dominate. The \textit{vulnerability reach} is the share of the graph's non-root nodes that lie in the blast radius of at least one vulnerable component; the root is excluded because it lies in every blast radius by construction.
+
+Every measure yields one value per SBOM. Results are reported as the median, the interquartile range (Q1--Q3) and the range over the 90 SBOMs, so that a handful of unusual projects does not dominate the picture. The evaluation is descriptive: it reports what the measures show across the dataset and makes no claim of statistical significance.
+
 
 \section{RQ1: Dependency Graph Profile}
 \label{sec:eval-rq1}
 
-\section{RQ2: Divergence from Flat-Inventory Analysis}
+\autoref{tab:eval-rq1} summarises the 90 graphs and \autoref{fig:eval-rq1} shows three of the distributions.
+
+\input{Tables/Chapter7/tab_rq1_profile}
+
+\textbf{Size and depth.} The median graph has 332 nodes and 534 edges, and its longest shortest path from the root has 8 hops. Only 11\% of the nodes of the median graph are direct dependencies; the remaining 89\% enter the application transitively. This is the structural fact behind the log4shell experience (\autoref{sec:case-log4shell}): most of what an application ships was never chosen by its developers.
+
+\textbf{Anomalies.} Cycles are rare but not absent: the median graph has none, but 30 of the 90 graphs contain at least one non-trivial strongly connected component, and for those the bow-tie decomposition of \autoref{sec:ns-bowtie} is defined. Version conflicts, by contrast, are pervasive, with a median of 24 packages present in more than one version and up to 137. This reflects npm's resolution strategy, which installs a second copy of a package when two consumers require incompatible versions, and means that the same vulnerable package frequently has to be patched in several places.
+
+\textbf{Degree distribution.} A power law could be fitted to the in-degree distribution of 87 graphs; in the remaining three, the in-degrees take too few distinct values. The fitted exponents are tightly clustered around \(\alpha = 2.62\) (interquartile range 2.50--2.84) and all lie between 2.09 and 3.00, inside the range typical of scale-free networks (\autoref{sec:scale-free}). The lower bound \(x_{\min}\) is 1 for almost every graph, so the fit covers nearly all components with at least one consumer, and the Kolmogorov--Smirnov distances are small (median \(D = 0.024\)). As \autoref{sec:ns-powerlaw} cautions, this is a description of the tail rather than a test against alternative distributions, but it confirms that a few components in each application are depended upon by many others, as in the ecosystem-wide studies of \autoref{sec:rw-dependency-graphs}.
+
+\textbf{Small-world structure.} Every graph has a small-world coefficient above 2 (median \(\sigma = 16.8\)): clustering is far higher than in a random graph of the same size (median \(C = 0.17\)), while any two components remain about five hops apart (median \(L = 5.0\)). Given the coarse random baseline (\autoref{sec:ns-small-world}), the size of \(\sigma\) is less informative than its consistency: across all 90 applications, components form tightly interlinked neighbourhoods rather than a tree.
+
+\textbf{Spread potential.} The spectral radius ranges from 4.7 to 20.6 (median 9.2), so the epidemic threshold \(1/\lambda_1\) ranges from 0.05 to 0.21. Because \(\lambda_1\) grows with the concentration of edges on hubs (\autoref{sec:ns-spectral-radius}), these values are consistent with the heavy-tailed degree distributions above; they also give each application a single index of spread potential that can be compared across versions.
+
+\begin{figure}[!htpb]
+    \centering
+    \includegraphics[width=\textwidth]{Figures/Chapter7/fig_rq1_distributions.pdf}
+    \caption[Distributions of graph size, power-law exponent and small-world coefficient]{Distributions over the 90 SBOMs of the number of nodes, the fitted power-law exponent \(\alpha\) of the in-degree distribution (87 SBOMs), and the small-world coefficient \(\sigma\).}
+    \label{fig:eval-rq1}
+\end{figure}
+
+In short, the production dependency graph of a single npm application reproduces, at a scale of hundreds of components, the properties the literature reports for entire ecosystems: a heavy-tailed in-degree distribution, small-world clustering, and a large majority of transitive dependencies. The structural measures of \autoref{cp:network-sci} therefore have structure to work with at the level of one application.
+
+
+\section{RQ2: Structural Ranking versus Severity}
 \label{sec:eval-rq2}
 
-\section{RQ3: Hidden Exposure and Vulnerability Reach}
+\autoref{tab:eval-rq2} and \autoref{fig:eval-rq2} compare, for each SBOM, the ordering of its vulnerable components by severity band with their ordering by blast-radius size and by HITS authority. The median SBOM has 25 vulnerable components, of which 3 are \textsc{critical}.
+
+\input{Tables/Chapter7/tab_rq2_agreement}
+
+\begin{figure}[!htpb]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Figures/Chapter7/fig_rq2_tau.pdf}
+    \caption[Agreement between severity and structural rankings]{Kendall \(\tau_b\) between the severity-band ranking of each SBOM's vulnerable components and their ranking by blast-radius size (90 SBOMs) and by HITS authority (79 SBOMs).}
+    \label{fig:eval-rq2}
+\end{figure}
+
+The two views are essentially unrelated. For blast-radius size, the median \(\tau_b\) is 0.00, and half of the SBOMs lie between \(-0.17\) and \(0.11\); 64 of the 90 have \(|\tau_b| < 0.2\), a level conventionally read as negligible association. Where the association is not negligible it is as often negative as positive: 17 SBOMs have \(\tau_b \leq -0.2\) and 9 have \(\tau_b \geq 0.2\). HITS authority gives the same picture, with a median of 0.00 and 13 SBOMs above 0.2 against 14 below \(-0.2\). The practical measure is starker still. In the median SBOM, none of the \textsc{critical} components is among the equally many components with the largest blast radius, or with the highest authority: the top-\(k\) overlap is zero in 66 SBOMs for blast radius and in 64 for authority.
+
+For HITS authority, 11 SBOMs could not be ranked: in these graphs the HITS computation did not converge within the iteration limit set in SBOM Lens, which then reports every score as zero (\autoref{sec:hits}). Blast radius, which is computed by a single traversal, is defined for every SBOM.
+
+This result must be read for what it is. A \(\tau_b\) near zero does not show that the structural ranking is better than the severity ranking, or the reverse; it shows that the two measure different things, and that knowing a component's severity tells an analyst almost nothing about where that component sits in the application. A \textsc{critical} vulnerability is as likely to be in a leaf package on which nothing else depends as in a component through which much of the application is reached, and many of the components whose compromise would affect the largest part of the application carry only \textsc{high} or \textsc{medium} vulnerabilities. This is the information a flat inventory cannot provide, and it is precisely what the central claim of \autoref{cp:network-sci} asserts.
+
+
+\section{RQ3: Hidden Exposure}
 \label{sec:eval-rq3}
+
+\autoref{tab:eval-rq3} and \autoref{fig:eval-rq3} report the three measures of exposure that a flat inventory does not show.
+
+\input{Tables/Chapter7/tab_rq3_exposure}
+
+\begin{figure}[!htpb]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Figures/Chapter7/fig_rq3_exposure.pdf}
+    \caption[Hidden exposure per SBOM]{Transitive-only share of vulnerable components, share of vulnerable components that are chokepoints, and vulnerability reach, over the 90 SBOMs.}
+    \label{fig:eval-rq3}
+\end{figure}
+
+\textbf{Transitive-only vulnerable components.} In the median SBOM, 75\% of the vulnerable components are not declared by the application; they arrive through its dependencies. The share is at least one half in 83 of the 90 SBOMs, and in seven every vulnerable component is transitive-only. An analyst who inspected only the application's declared dependencies would miss most of its vulnerable code, and one who sees the vulnerable components in a flat list still has to work out, for each, how it entered the application --- the dependency path SBOM Lens shows directly.
+
+\textbf{Vulnerable chokepoints.} Every one of the 90 SBOMs contains at least one vulnerable chokepoint, with a median of 12. Almost half of all vulnerable components (median 45\%) are chokepoints: parts of the application are reachable only through them, so they could not be removed or replaced without also losing those parts. Together, the vulnerable chokepoints of the median SBOM dominate 21\% of its graph, and in one project 94\%. These are the components for which remediation is hardest --- the ones that cannot simply be dropped --- and a flat inventory gives no indication of which they are.
+
+\textbf{Vulnerability reach.} In the median SBOM, 19\% of the non-root components lie in the blast radius of at least one known vulnerability, ranging from 9\% to 35\%. Reach is a measure of how much of the application inherits some known vulnerability, as opposed to how many components are themselves vulnerable.
+
+Taken together, the three measures show that the exposure an SBOM describes is mostly structural. Most vulnerable components are hidden behind other dependencies, nearly half of them are structurally irreplaceable, and roughly a fifth of each application depends on at least one of them.
+
 
 \section{Performance}
 \label{sec:eval-performance}
 
+\autoref{tab:eval-performance} reports the time each analysis took per SBOM, measured by the collection pipeline on a single workstation, and \autoref{fig:eval-performance} relates the total time to graph size.
+
+\input{Tables/Chapter7/tab_performance}
+
+\begin{figure}[!htpb]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Figures/Chapter7/fig_performance.pdf}
+    \caption[Analysis time per SBOM]{Total analysis time per SBOM against its number of nodes, with and without the audit, whose time is dominated by queries to the npm registry.}
+    \label{fig:eval-performance}
+\end{figure}
+
+A complete analysis of one SBOM took a median of 5.3~seconds and at most 17.2~seconds. Nearly all of it is the audit, and nearly all of the audit is the unmaintained-package check, which queries the npm registry once per package; its time depends on the network rather than on the graph. Every other analysis had a median between 2 and 150 milliseconds, including the impact analysis of all vulnerable components of an SBOM; the slowest were the two spectral analyses, which took at most 2.9 seconds on the largest graphs. At the scale of a single application, the structural analysis of \autoref{cp:network-sci} is therefore interactive.
+
+
 \section{Threats to Validity}
 \label{sec:eval-threats}
+
+\textbf{Construct validity.} The severity-band ranking stands in for how an analyst would prioritise from a flat inventory; tools that rank by numeric CVSS score, or combine severity with exploit likelihood, would produce finer orderings, whose agreement with the structural rankings was not measured. Both structural measures describe exposure at the level of components: a component in the blast radius of a vulnerable component depends on it, but may never execute the vulnerable code (\autoref{sec:rw-call-graphs}), so blast radius and reach over-approximate actual exposure. HITS authority could not be computed for 11 of the 90 graphs; the RQ2 results for authority rest on the remaining 79.
+
+\textbf{Internal validity.} The dependency graphs are those cdxgen generates, and generators are imperfect. For the 53 projects with an npm lockfile, the production graph was compared with the lockfile's own marking of production packages: in the median graph, 99.9\% of the nodes are marked as production in the lockfile, and 23 graphs match it exactly, but four graphs fall below 90\% agreement, the lowest at 75\%, because cdxgen occasionally links a production package to a different installed copy of a dependency than npm resolves. These graphs were kept as generated, because the evaluation concerns SBOMs as real tools produce them; the graphs of the 37 projects with \texttt{yarn} or \texttt{pnpm} lockfiles could not be checked in this way. Vulnerability data reflects OSV's state on the query date; advisories published later, or recorded only outside OSV, are not included.
+
+\textbf{External validity.} The dataset is deliberately narrow: popular npm applications (at least 10{,}968 stars), with a committed lockfile, not organised as monorepos, with 50 to 1{,}000 production components, and with at least one \textsc{critical} known vulnerability, analysed at releases from 2017 to 2024. Each filter shapes the result. npm's nested installation of duplicate versions inflates version conflicts relative to ecosystems such as Maven, which install a single version; very large applications and monorepos are excluded; and projects without critical vulnerabilities may have different structures. The findings describe vulnerable, medium-sized npm applications, and their replication for other ecosystems is left as future work (\autoref{sec:concl-future}).
+
+\textbf{Conclusion validity.} The evaluation is descriptive and reports distributions rather than hypothesis tests. Per-SBOM rank correlations rest on few components when an SBOM has few vulnerable components --- as few as three --- which widens the spread of \(\tau_b\), visible in the extreme values of \autoref{fig:eval-rq2}; the medians and interquartile ranges, which the conclusions rely on, are robust to such cases.
+
+
+\section{Reproducibility}
+\label{sec:eval-reproducibility}
+
+The collection pipeline, the list of candidates in processing order, the rejected candidates with their reasons, the 90 SBOMs, every SBOM Lens response, and the analysis script that produces the tables and figures of this chapter are published in the \texttt{sbom-lens-eval} repository. Each run records the versions of the tools it used: SBOM Lens at commit \texttt{dfc8e23}, cdxgen~12.8.5 and Node.js~20.20.2. Rerunning the analysis script on the published data regenerates every table and figure of this chapter; rerunning the collection reproduces the dataset up to changes in the vulnerability databases and in the GitHub repositories themselves.

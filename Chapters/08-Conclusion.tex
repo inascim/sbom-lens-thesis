@@ -7,14 +7,15 @@ This thesis set out to show that the dependency relationships recorded in a Soft
 \section{Summary of Findings}
 \label{sec:concl-findings}
 
-% TODO: write once the results of Chapter 7 exist. One paragraph per research question:
-%   RQ1 -- what the production dependency graphs of the npm applications look like (size, depth,
-%          degree distribution, topology);
-%   RQ2 -- how far structural rankings diverge from the CVSS-only ranking (Kendall tau, top-k overlap);
-%   RQ3 -- hidden exposure: transitive-only vulnerable components, vulnerable chokepoints,
-%          vulnerability reach (all severities and CRITICAL only).
-%   Close with the answer to the central claim: does the structural view change what an analyst would
-%   prioritise?
+The evaluation of \autoref{cp:evaluation} applied SBOM Lens to the production dependency graphs of 90 popular npm applications, each with at least one critical known vulnerability, and answered three research questions.
+
+\textbf{RQ1: the dependency graph of a single application has the structure found in whole ecosystems.} The median graph has 332 components, of which only 11\% are declared by the application itself. In 87 of the 90 graphs the in-degree distribution is heavy-tailed, with fitted exponents between 2.1 and 3.0, and every graph is small-world: components form tightly clustered neighbourhoods while remaining about five hops apart. Version conflicts are pervasive (median 24 per application), and 30 applications contain dependency cycles. Graph measures developed for ecosystems therefore have structure to work with at the scale of one application.
+
+\textbf{RQ2: severity says almost nothing about where a vulnerable component sits.} Ranking each application's vulnerable components by severity band and by structural position gives unrelated orderings: the median Kendall \(\tau_b\) is 0.00 both for blast-radius size and for HITS authority, and in most applications none of the critical components is among the equally many components with the largest blast radius. A critical vulnerability is as likely to affect a leaf package as a component through which much of the application is reached.
+
+\textbf{RQ3: most vulnerability exposure is structural and hidden from a flat inventory.} In the median application, 75\% of the vulnerable components are not declared by the application; every application has vulnerable chokepoints --- vulnerable components that parts of the application can be reached only through --- and in the median application they are 45\% of the vulnerable components and dominate 21\% of the graph; and 19\% of the application lies in the blast radius of at least one known vulnerability.
+
+Together, these results support the central claim of the thesis: the position of a component in the dependency graph carries risk information that a flat inventory of components and vulnerabilities does not, and SBOM Lens makes that information available at interactive speed: on graphs of up to a thousand components, its structural analyses took milliseconds in the median case and at most a few seconds.
 
 
 \section{Contributions}
@@ -29,7 +30,7 @@ The four research objectives of \autoref{sec:objectives} map one-to-one to the c
 \textbf{Graph-based structural risk analysis (RO3).} SBOM Lens computes structural measures at three scales (\autoref{cp:network-sci}): per component (articulation points and bridges, HITS scores, a spectral exposure score, core numbers), per cluster (Louvain communities, the bow-tie decomposition, the rich-club coefficient), and for the whole graph (the spectral radius and epidemic threshold, degree entropy, cycles, version conflicts, namespace concentration, the in-degree distribution and the small-world coefficient). For each measure, the thesis states precisely what is computed, on which graph, and how the result should be read --- including where a measure is only a coarse indicator.
 
 \textbf{Empirical evaluation (RO4).} The evaluation of \autoref{cp:evaluation} applies SBOM Lens to the production dependency graphs of npm applications, collected reproducibly from public repositories at fixed release tags and restricted to applications with at least one critical known vulnerability. The collection pipeline, the SBOMs and every analysis result are published with the thesis, so each reported number can be regenerated.
-% TODO: add one sentence with the headline result of RQ2 once available.
+On 90 applications, the structural and severity rankings of vulnerable components were found to be unrelated (median \(\tau_b = 0.00\)), and three-quarters of the vulnerable components to be transitive-only.
 
 Beyond the objectives, the work contributes a clarification of the vocabulary of structural SBOM analysis: it distinguishes the blast radius of a component from its dominated set, chokepoints from articulation points, version conflicts from the diamond pattern that causes them, and static spectral analysis from propagation simulation. Several measures commonly reported in the literature and in earlier versions of SBOM Lens were found, on inspection, to compute something other than their names suggested; the thesis reports each measure as it is actually computed.
 

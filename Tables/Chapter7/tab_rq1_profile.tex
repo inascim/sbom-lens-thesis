@@ -1,0 +1,29 @@
+\begin{table}[!htpb]
+    \centering
+    \small
+    \caption{Profile of the 90 production dependency graphs (RQ1).}
+    \label{tab:eval-rq1}
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Measure} & \(n\) & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{Min} & \textbf{Max} \\
+        \midrule
+        Nodes & 90 & 332 & 199 & 492 & 63 & 995 \\
+        Edges & 90 & 534 & 283 & 943 & 79 & 2{,}424 \\
+        Maximum depth & 90 & 8 & 7 & 9 & 4 & 12 \\
+        Direct dependencies (share of nodes) & 90 & 0.11 & 0.08 & 0.18 & 0.02 & 0.38 \\
+        Out-degree entropy (bits) & 90 & 2.29 & 2.11 & 2.42 & 1.68 & 2.86 \\
+        Cycles & 90 & 0 & 0 & 2 & 0 & 16 \\
+        Non-trivial SCCs & 90 & 0 & 0 & 1 & 0 & 5 \\
+        Version conflicts & 90 & 24 & 11 & 46 & 0 & 137 \\
+        Power-law exponent \(\alpha\) & 87 & 2.62 & 2.50 & 2.84 & 2.09 & 3.00 \\
+        \(x_{\min}\) & 87 & 1 & 1 & 1 & 1 & 3 \\
+        Kolmogorov--Smirnov \(D\) & 87 & 0.024 & 0.018 & 0.037 & 0.006 & 0.089 \\
+        Small-world \(\sigma\) & 90 & 16.75 & 9.21 & 24.84 & 2.18 & 44.26 \\
+        Average clustering \(C\) & 90 & 0.171 & 0.144 & 0.203 & 0.046 & 0.284 \\
+        Average path length \(L\) & 90 & 5.01 & 4.74 & 5.33 & 3.09 & 6.50 \\
+        Maximum rich-club \(\phi\) & 90 & 0.67 & 0.33 & 1.00 & 0.13 & 1.00 \\
+        Spectral radius \(\lambda_1\) & 90 & 9.24 & 7.18 & 11.53 & 4.68 & 20.55 \\
+        Epidemic threshold \(1/\lambda_1\) & 90 & 0.108 & 0.087 & 0.139 & 0.049 & 0.214 \\
+        \bottomrule
+    \end{tabular}
+\end{table}

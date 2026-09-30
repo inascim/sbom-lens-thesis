@@ -19,7 +19,7 @@ Agreed order of work (2026-09-30). Decisions behind each step are in `docs/adr/`
    - [x] Ch6: component, cluster and whole-graph scales.
    - [x] Ch3: gap analysis, research clusters, case studies, per-tool prose.
    - [x] Ch8: everything except the summary of findings.
-   - [ ] Ch7: dataset and pipeline, method and RQs, threats to validity.
+   - [x] Ch7: dataset and pipeline, method and RQs, threats to validity.
 4. **After data collection**
-   - [ ] Ch7: RQ1–RQ3 results and the performance paragraph.
-   - [ ] Ch8: summary of findings.
+   - [x] Ch7: RQ1–RQ3 results and the performance paragraph.
+   - [x] Ch8: summary of findings.
