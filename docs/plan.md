@@ -16,7 +16,7 @@ Agreed order of work (2026-09-30). Decisions behind each step are in `docs/adr/`
    - [ ] Push to GitHub; Zenodo snapshot at submission.
 3. **Thesis writing** (can overlap with step 2)
    - [x] Ch6: component, cluster and whole-graph scales.
-   - [ ] Ch3: gap analysis (3.4) first, then 3.2 and 3.3 working back from it.
+   - [x] Ch3: gap analysis, research clusters, case studies, per-tool prose.
    - [ ] Ch8: everything except the summary of findings.
    - [ ] Ch7: dataset and pipeline, method and RQs, threats to validity.
 4. **After data collection**

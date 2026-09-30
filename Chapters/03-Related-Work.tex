@@ -10,8 +10,14 @@ Situating SBOM Lens within existing work requires surveying three bodies of lite
 The SBOM tooling ecosystem has grown rapidly since the US Executive Order 14028 of 2021 accelerated adoption across government-adjacent supply chains. Four open-source tools are in widespread production use: Dependency-Track (OWASP), grype and syft (Anchore), and Sunshine (CycloneDX project). Commercial tools such as FOSSA also exist but are beyond the scope of this survey, which focuses on open-source solutions whose internals can be examined and extended. Closest to the graph-adjacent end of the spectrum is GUAC (Graph for Understanding Artifact Composition), which joined OpenSSF as an incubating project in March 2024 \citep{GUAC2024}; GUAC constructs graphs across multiple SBOMs at portfolio scale, which is a complementary but distinct scope from the within-SBOM structural analysis that SBOM Lens addresses.
 
 \autoref{tab:sbom-tools} compares the four open-source tools along four dimensions: SBOM format support, graph capability, vulnerability integration, and scope/purpose. SBOM Lens appears as the final row, separated by a rule, so the capability gaps are structurally visible.
-% TODO: the PDF had only this paragraph and the table in Section 3.1. Add per-tool prose
-% (Dependency-Track, grype, syft, Sunshine) citing DependencyTrack, Grype, Syft, and a Sunshine source.
+
+\textit{Dependency-Track} is an OWASP flagship project for continuous component analysis across an organisation's portfolio \citep{DependencyTrack}. Projects upload SBOMs, and the platform matches every component against several vulnerability intelligence sources, re-evaluates them as new advisories appear, and applies security and licence policies. It is the closest mainstream tool to SBOM Lens in purpose, and it can display the dependency tree recorded in a CycloneDX SBOM. Its analysis, however, remains per component: findings are listed and prioritised by severity, and the tree is a navigation aid, not an object of computation. No reachability, dominance or centrality is computed over it.
+
+\textit{grype} is a vulnerability scanner that takes a container image, a directory or an SBOM and reports the known vulnerabilities of every package it finds, drawing on an aggregated vulnerability database \citep{Grype}. It is designed for point-in-time scanning in continuous integration pipelines, and its output is a list of (package, vulnerability, severity) findings. \textit{syft}, from the same vendor, is its complement on the generation side: it produces SBOMs in CycloneDX and SPDX from images, file systems and source trees, and performs no vulnerability analysis of its own \citep{Syft}. Together they represent the standard ``generate, then scan'' workflow, in which the dependency relationships recorded in the SBOM are carried along but never analysed.
+
+\textit{Sunshine}, from the CycloneDX project, is a browser-based viewer that renders a CycloneDX SBOM's components, dependencies and vulnerabilities as an interactive sunburst chart and tables \citep{Sunshine}. It is the only surveyed tool whose primary purpose is to show the dependency structure, and it demonstrates the value of seeing vulnerabilities in their dependency context. Its view, though, is hierarchical: a sunburst draws each dependency path as nested rings, so a component reached along several paths is drawn several times, and no graph algorithm is run over the structure.
+
+Across the four tools, the SBOM's dependency relationships are either discarded, displayed, or at most traversed as a tree. None treats them as a graph to be analysed. This is the first of the gaps identified in \autoref{sec:gap-analysis}.
 
 \begin{table}[!htpb]
     \centering
@@ -23,12 +29,12 @@ The SBOM tooling ecosystem has grown rapidly since the US Executive Order 14028 
         \toprule
         \textbf{Tool} & \textbf{Format Support} & \textbf{Graph Capability} & \textbf{Vuln Integration} & \textbf{Scope} \\
         \midrule
-        Dependency-Track & CycloneDX (preferred), SPDX & None --- flat component list & NVD, OSV, GHSA, EPSS, Snyk, VulnDB & Portfolio-wide continuous monitoring \\
+        Dependency-Track & CycloneDX (preferred), SPDX & Dependency tree view; no graph analysis & NVD, OSV, GHSA, EPSS, Snyk, VulnDB & Portfolio-wide continuous monitoring \\
         grype & CycloneDX, SPDX & None --- flat CVE list & Aggregated DB (NVD, OSV, GHSA), EPSS, CISA KEV & Point-in-time vulnerability scan; CI/CD \\
         syft & CycloneDX (JSON+XML), SPDX & None --- SBOM generator only & None (generation only) & SBOM generation from images, filesystems, source \\
         Sunshine & CycloneDX JSON only & Visual/hierarchical only (sunburst chart) --- no graph algorithms & EPSS, CISA KEV enrichment; SQL query interface & Interactive SBOM viewer and SQL querying \\
         \midrule
-        SBOM Lens & CycloneDX JSON & Directed dependency graph; articulation points, k-core decomposition, HITS, Louvain community detection, degree, betweenness, and closeness centrality & NVD, OSV, GHSA; CVSS v3.1 base score; vulnerability--graph overlay & Within-SBOM structural risk assessment \\
+        SBOM Lens & CycloneDX JSON & Directed dependency graph; blast radius, dominated sets, articulation points, HITS, spectral analysis, core numbers, Louvain communities, whole-graph topology & OSV (aggregating GHSA and others); CVSS v3.1 base score; vulnerability--graph overlay & Within-SBOM structural risk assessment \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -43,30 +49,33 @@ A substantial body of academic work applies graph theory and network science to 
 \subsection{Dependency Graph Analysis}
 \label{sec:rw-dependency-graphs}
 
-Empirical studies of package dependency networks have established that open-source ecosystems form large, scale-free graphs in which a small number of packages are transitively depended upon by the majority of the ecosystem.
-% TODO: section was a stub in the PDF. Expand with ecosystem-scale studies (e.g. npm/PyPI dependency
-% network analyses), then forward-reference \autoref{cp:network-sci}.
+Empirical studies of package dependency networks have established that open-source ecosystems form large, scale-free graphs in which a small number of packages are transitively depended upon by the majority of the ecosystem. \citet{Kikas2017} analysed the dependency networks of the JavaScript, Ruby and Rust ecosystems over time and found that the number of transitive dependencies of a typical package grows steadily, and that the removal of a single package can break a substantial share of the ecosystem. \citet{Decan2019} compared the evolution of seven packaging ecosystems, including npm, and showed that all of them grow over time with a heavy reliance on transitive dependencies, making each package exposed to changes far beyond the packages it declares. For npm specifically, \citet{Zimmermann2019} found that installing an average package implicitly trusts around 80 other packages and around 40 maintainers, and that a small number of maintainer accounts can reach a large share of the ecosystem.
+
+These studies share a unit of analysis: the \emph{ecosystem}. Their graphs contain every package of a registry, and their findings are statements about the registry as a whole. They establish why dependency structure matters for security, but they do not tell the owner of a single application which of its components are structurally critical. SBOM Lens transfers the same kind of analysis to the dependency graph of one project, as described by its SBOM (\autoref{cp:network-sci}), and \autoref{cp:evaluation} asks whether the ecosystem-scale findings --- heavy-tailed degree distributions, concentration on a few packages --- also hold at that scale.
 
 
 \subsection{Software Vulnerability Graphs}
 \label{sec:rw-vuln-graphs}
 
-A second cluster of work models vulnerability propagation through dependency graphs, moving beyond per-package CVE counts toward structural propagation metrics.
-% TODO: section was a stub in the PDF. Expand, then forward-reference \autoref{cp:vuln-analysis}.
+A second cluster of work models vulnerability propagation through dependency graphs, moving beyond per-package CVE counts toward structural propagation metrics. \citet{Decan2018} studied how security vulnerabilities in npm packages affect the packages that depend on them, and how long it takes for fixes to reach those dependents; many dependents remain exposed long after a fix is published, because their version constraints do not admit it. \citet{Liu2022} reconstructed the resolved dependency trees of npm packages and traced how vulnerabilities propagate along them, showing that a large share of vulnerable dependencies are introduced transitively and that the resolution rules of the package manager decide whether a fix can propagate at all. \citet{Pashchenko2018} showed that counting every vulnerable dependency overstates the problem: dependencies used only for development or testing are never shipped, and excluding them materially changes the picture --- an observation that motivates the restriction of the evaluation in \autoref{cp:evaluation} to production dependency graphs.
+
+This body of work confirms that vulnerability exposure is a property of the dependency graph, not of a package in isolation. Like the studies of the previous subsection, however, it measures propagation across an ecosystem. SBOM Lens applies the same idea inside a single project: the blast radius of a vulnerable component and the components it dominates are computed on the project's own graph and shown on it (\autoref{cp:vuln-analysis}).
 
 
 \subsection{Call Graph and Static Analysis}
 \label{sec:rw-call-graphs}
 
-Call graph reachability analysis determines whether a vulnerable function is actually reachable from application code, filtering CVE noise to only genuinely exploitable paths.
-% TODO: section was a stub in the PDF. Expand, and state why SBOM Lens works at component level.
+Call graph reachability analysis determines whether a vulnerable function is actually reachable from application code, filtering CVE noise to only genuinely exploitable paths. \citet{Ponta2018} combined static and dynamic analysis to determine whether the code affected by a known vulnerability is actually executed by an application, and showed that such code-centric analysis identifies many reported vulnerabilities as unreachable. Reachability of this kind is the most precise answer to ``does this vulnerability affect me?'', and it is complementary to SBOM Lens rather than in competition with it.
+
+SBOM Lens deliberately works at the level of components rather than functions. An SBOM records components and their dependency relationships; it contains no code, and many SBOMs are produced and shared without access to the source they describe. Component-level analysis therefore applies wherever an SBOM exists, at the cost of over-approximating exposure: a component in the blast radius of a vulnerability depends on the vulnerable component, but may never call the vulnerable function. The structural measures of \autoref{cp:network-sci} are also meaningful without any vulnerability at all, which function-level reachability is not. Combining the two --- using call-graph reachability to prune the vulnerability overlay --- is left as future work.
 
 
 \subsection{Network Science Applied to Software}
 \label{sec:rw-network-science}
 
-The network science literature provides the theoretical toolkit that SBOM Lens applies to individual SBOM dependency graphs.
-% TODO: section was a stub in the PDF. Expand, then forward-reference \autoref{cp:network-sci}.
+The network science literature provides the theoretical toolkit that SBOM Lens applies to individual SBOM dependency graphs. Software has been studied as a complex network for over two decades. \citet{Valverde2002} found scale-free degree distributions in the graphs of classes of object-oriented systems, and \citet{Myers2003} showed that the collaboration graphs of several large software systems are both scale-free and small-world, relating these properties to how software is designed and evolves. \citet{Louridas2008} found power laws across a wide range of software structures, from class dependencies to library usage, concluding that they are the norm rather than the exception. The same concepts --- degree distributions, clustering, path lengths, centrality, communities (\autoref{sec:network-science}) --- underlie the ecosystem studies above.
+
+Two lessons carry over to SBOM Lens. First, heavy-tailed structure means that a few components carry a disproportionate share of the dependency relationships, so structural measures can single them out. Second, claims about such structure need careful statistics: \citet{Clauset2009} showed that many reported power laws do not withstand rigorous fitting, which is why SBOM Lens fits the degree distribution by maximum likelihood (\autoref{sec:ns-powerlaw}). What the literature has not done is apply this toolkit systematically to the dependency graph of a single application, as a routine part of analysing its SBOM; \autoref{cp:network-sci} does so.
 
 
 \section{Supply Chain Attack Case Studies}
@@ -79,23 +88,51 @@ Both cases examined below were introduced in \autoref{sec:motivation} as evidenc
 \label{sec:case-solarwinds}
 
 As introduced in \autoref{sec:motivation}, the SolarWinds SUNBURST compromise demonstrated build-pipeline supply chain risk \citep{CISA_AA20_352A}; this subsection examines what graph-based SBOM analysis would have revealed.
-% TODO: section was a stub in the PDF.
+
+The answer is instructive precisely because it is limited. The malicious code was injected into the vendor's own build process and shipped inside a legitimately signed release of the Orion product. No dependency was added, and no known vulnerability existed in any component until the compromise was discovered. An SBOM of Orion would have listed the same components before and after the injection, and no analysis of that SBOM --- flat or graph-based --- could have detected the attack. Detecting build-pipeline compromise requires provenance and build-integrity controls such as those of SLSA \citep{SLSA}, not SBOM analysis.
+
+Graph analysis becomes useful after disclosure. Once a compromised component is known, the questions are the ones SBOM Lens answers: which parts of each affected application depend on it, directly or transitively (its blast radius), and which parts would be cut off if it were removed or replaced (its dominated set). For SUNBURST, the compromised artefact was a product deployed across an organisation rather than a library inside one application's dependency graph, so the relevant graph is the organisation's portfolio of software --- the scope addressed by GUAC \citep{GUAC2024} --- rather than the single-SBOM scope of SBOM Lens. The case therefore marks a boundary of this work: SBOM Lens supports impact assessment for components inside an application's dependency graph, not detection of compromised builds, and not portfolio-wide analysis.
 
 
 \subsection{log4shell (CVE-2021-44228, December 2021)}
 \label{sec:case-log4shell}
 
 As introduced in \autoref{sec:motivation}, the log4shell vulnerability exposed the hidden scale of transitive dependency risk \citep{NIST_CVE_2021_44228}; this subsection quantifies what an SBOM graph would have shown.
-% TODO: section was a stub in the PDF.
+
+The ecosystem-wide scale was measured shortly after disclosure: an analysis of Maven Central found that over 35{,}000 Java packages were affected, and that most of them depended on \texttt{log4j-core} only indirectly, some through chains many levels deep \citep{GoogleLog4j2021}. For an individual application, the first question after disclosure was whether it contained \texttt{log4j-core} at a vulnerable version at all. A flat inventory answers that question. The next questions --- which parts of the application reach it, through which chains, and whether it could be removed or replaced without breaking anything else --- require the graph.
+
+To make this concrete, \autoref{tab:log4j-case} shows what SBOM Lens reports for \texttt{log4j-core} 2.14.1 in the illustrative Java SBOM distributed with the tool, a small application of 13 components that depends on \texttt{log4j-core} directly. The blast radius contains the application itself; the dependency path shows how \texttt{log4j-core} enters the graph; the dominated set shows that \texttt{log4j-api} is reachable only through \texttt{log4j-core}, so removing the vulnerable component would also remove its API package; and \texttt{log4j-core} is an articulation point of the undirected graph. In this small example the vulnerable component sits one hop from the root, so every measure is small. In the transitive situation that dominated the real incident, the dependency paths would run through intermediate libraries, the blast radius would include every one of them, and the question of whether \texttt{log4j-core} can be removed would depend on which of those libraries require it --- exactly the information the graph provides and a flat inventory does not. \autoref{cp:evaluation} measures these quantities across real npm applications.
+
+\begin{table}[!htpb]
+    \centering
+    \small
+    \caption[log4shell in an illustrative SBOM]{What SBOM Lens reports for \texttt{log4j-core} 2.14.1 in the illustrative Java SBOM distributed with the tool (13 components, 13 dependency edges).}
+    \label{tab:log4j-case}
+    \begin{tabular}{lp{8.5cm}}
+        \toprule
+        \textbf{Measure} & \textbf{Result} \\
+        \midrule
+        Blast radius & \texttt{my-spring-app} (the application) and \texttt{log4j-core} itself \\
+        Dependency path & \texttt{my-spring-app} \(\to\) \texttt{log4j-core} \\
+        Dominated set & \texttt{log4j-api} \\
+        Articulation point & Yes \\
+        HITS authority & 0.167 (sum over all components: 1) \\
+        Spectral exposure score & 1.15 (maximum in the graph: 2.77, the application itself) \\
+        Core number & 1 (maximum in the graph: 2) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 
 \section{Gap Analysis}
 \label{sec:gap-analysis}
 
 The survey above reveals four capabilities absent from current tooling and the research literature; SBOM Lens addresses each of these gaps. The evidence for each absence is grounded in \autoref{tab:sbom-tools} and the research clusters surveyed in \autoref{sec:graph-security-research}.
-% TODO: section was a stub in the PDF. Write this first, then write 3.2 and 3.3 to set up these gaps. Agreed gaps:
-%   (1) existing tools (Dependency-Track, grype, syft) do flat-inventory analysis with no within-SBOM graph structure -> Ch4;
-%   (2) no tool overlays vulnerabilities on the graph with blast radius and dominated sets -> Ch5;
-%   (3) no structural/spectral prioritisation beyond CVSS -> Ch6;
-%   (4) graph research works at ecosystem scale, not on a single project's SBOM -> Ch6/Ch7.
-%   The log4shell case study (3.3) should quantify blast radius and chokepoints.
+
+\textbf{Gap 1: no graph representation in SBOM tooling.} The surveyed tools treat an SBOM as an inventory. Dependency relationships are discarded, displayed as a tree, or carried along unchanged, but never turned into a graph on which algorithms run (\autoref{sec:sbom-tools}). SBOM Lens builds a directed dependency graph from the CycloneDX \texttt{dependencies} array and makes it the central data structure of the tool (\autoref{cp:system-design}).
+
+\textbf{Gap 2: no vulnerability impact in graph terms.} When a vulnerability is found, the tools report the affected component and its severity. They do not report which parts of the application depend on it, through which paths, or which components could not be reached without it. The research that models vulnerability propagation does so across whole ecosystems (\autoref{sec:rw-vuln-graphs}). SBOM Lens overlays vulnerabilities on the project's graph and computes, for each vulnerable component, its blast radius, the dependency paths that lead to it, and its dominated set (\autoref{cp:vuln-analysis}).
+
+\textbf{Gap 3: no structural prioritisation beyond severity.} Findings are ranked by CVSS score, sometimes refined by exploit likelihood (EPSS), which describe the vulnerability rather than where the affected component sits. Two components with the same CVE are treated identically whether one is a leaf and the other the only route to half the application, and components without a current CVE are not ranked at all. SBOM Lens computes structural measures at the component, cluster and whole-graph scales --- including centrality, spectral exposure, core numbers and communities --- that rank components by their position in the graph (\autoref{cp:network-sci}).
+
+\textbf{Gap 4: graph analysis at the wrong scale.} The research that does analyse dependency graphs works at the scale of whole ecosystems or of the software's internal code structure (\autoref{sec:rw-dependency-graphs}, \autoref{sec:rw-network-science}), and portfolio-scale tools such as GUAC work across many projects. The dependency graph of a single application, as described by its SBOM, has not been systematically analysed with these methods, and it is not known whether ecosystem-scale properties hold at that scale. SBOM Lens applies the methods at that scale (\autoref{cp:network-sci}), and \autoref{cp:evaluation} measures, across real applications, what the structural view reveals that a flat inventory does not.
