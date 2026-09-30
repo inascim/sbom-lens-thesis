@@ -1,29 +1,201 @@
 \chapter[Structural Risk and Graph Analysis]{Structural Risk and Graph Analysis}
 \label{cp:network-sci}
 
-% TODO: chapter not yet written. Decisions: docs/adr/0001; vocabulary: CONTEXT.md.
-% Central claim: a component's position in the dependency graph carries risk information that
-%   flat-inventory analysis cannot express; graph measures make it visible at three scales.
-% Organise by scale, not by algorithm:
-%   Component scale  -- articulation points and bridges, HITS hub/authority, spectral exposure score
-%                       (eigenvector centrality; never "R0"), k-core number; one paragraph on the
-%                       optimizer's edge rankings as an application of the spectral score.
-%   Cluster scale    -- Louvain communities, bow-tie decomposition, rich-club.
-%   Whole-graph scale-- spectral radius and epidemic threshold 1/lambda_1, degree entropy, cycles/SCCs,
-%                       version conflicts (not "diamonds"), namespace concentration, power-law fit,
-%                       small-world (C, L). Define briefly here; values are reported in Chapter 7 (RQ1).
-% Out: blast radius and dominated sets (Chapter 5, refer back); unmaintained check (short note in
-%   Chapter 5); WL fingerprinting / SBOM comparison (left out of the thesis); propagation simulation
-%   (future work).
+\autoref{cp:vuln-analysis} attached known vulnerabilities to the dependency graph and measured, for one vulnerable component at a time, who inherits the vulnerability (its blast radius) and who could not route around it (its dominated set). This chapter turns to risk that does not depend on any particular vulnerability being known. Its central claim is that \emph{where a component sits in the dependency graph carries risk information that flat-inventory analysis cannot express}. A list of components, versions and CVEs says nothing about which component the rest of the application cannot do without, which components form tightly coupled clusters, or how readily a compromise could travel through the graph as a whole. SBOM Lens makes this \textit{structural risk} visible through a set of graph measures, organised in this chapter by the scale at which they describe the graph.
+
+\autoref{sec:component-scale} covers the \textit{component scale}: measures that assign a value to each individual component or dependency edge. \autoref{sec:cluster-scale} covers the \textit{cluster scale}: measures that describe groups of components --- communities, the bow-tie decomposition, and the rich club. \autoref{sec:structural-risk} covers the \textit{whole-graph scale}: single numbers or distributions that characterise the dependency graph of an entire project. \autoref{sec:ns-summary} summarises every measure with the graph it is computed on and what it adds beyond a flat inventory. The theoretical definitions of the underlying concepts were given in \autoref{sec:graph-theory} and \autoref{sec:network-science}; this chapter states how SBOM Lens applies each of them, what exactly it computes, and how the result should be read in supply-chain terms. The values these measures take on real projects are reported in \autoref{cp:evaluation}.
+
+Three conventions hold throughout. First, edges point from consumer to dependency (\autoref{sec:edge-representation}): an edge \(u \to v\) means that \(u\) depends on \(v\), so the in-degree \(\deg^-(v)\) counts the direct consumers of \(v\) and the out-degree \(\deg^+(v)\) counts its direct dependencies. Second, several measures are defined only for undirected graphs, or are uninformative on directed ones; for these, SBOM Lens uses the \textit{undirected projection} \(G_u\) of the dependency graph \(G\), in which \(u\) and \(v\) are adjacent if either depends on the other. Each section states which of the two graphs a measure uses, because the choice changes what the result means. Third, all measures are computed by the backend with NetworkX \citep{Hagberg2008} on the graph cached at ingestion, and are exposed through the REST endpoints listed in \autoref{sec:ns-summary}; each endpoint caches its result per SBOM until the SBOM is edited or deleted.
+
+The spectral measures illustrate why the undirected projection is sometimes unavoidable. A dependency graph is acyclic or nearly so (\autoref{sec:dags}), and the adjacency matrix of a directed acyclic graph is nilpotent: every one of its eigenvalues is zero. A spectral radius computed on \(G\) itself would therefore be zero for almost every SBOM and would carry no information. On \(G_u\) the adjacency matrix is symmetric, its eigenvalues are real, and its largest eigenvalue and the corresponding eigenvector are well defined and non-trivial. The cost is that direction is lost: a measure computed on \(G_u\) treats ``depends on'' and ``is depended on by'' alike. The chapter returns to this trade-off wherever it matters.
+
 
 \section{Component Scale}
 \label{sec:component-scale}
 
+Component-scale measures answer the question an analyst asks when looking at a single node: how important is this component to the structure of the application, independently of whether it currently has a known vulnerability? SBOM Lens provides five such measures, each reflecting a different notion of importance.
+
+
+\subsection{Articulation Points and Bridges}
+\label{sec:ns-articulation}
+
+An articulation point is a component whose removal disconnects the graph (\autoref{sec:articulation-points}), and a bridge is a dependency edge whose removal does the same. SBOM Lens computes both on the undirected projection: articulation points with \texttt{nx.articulation\_points(}\(G_u\)\texttt{)}, returned by \texttt{GET /sboms/\{id\}/global-analysis}, and bridges with \texttt{nx.bridges(}\(G_u\)\texttt{)}, returned by \texttt{GET /sboms/\{id\}/optimizer}. NetworkX defines neither for directed graphs, and both run in \(O(|V| + |E|)\) time.
+
+In supply-chain terms, an articulation point is a component through which two otherwise separate parts of the dependency graph are joined, and a bridge is a single dependency relationship that is the only link between two parts. Such components and edges are natural points of fragility: a compromise, a deprecation or a licence change at an articulation point touches both sides of the split.
+
+The undirected projection, however, means that these are not the same as the \textit{chokepoints} defined in \autoref{sec:dominator-tree}. A chokepoint is a component that the application cannot route around \emph{from the root}: its dominated set is non-empty. An articulation point may separate two groups of consumers that have nothing to do with the root, and a component that dominates a subtree need not disconnect the undirected graph if some unrelated edge happens to link that subtree back to the rest. The two notions answer different questions. Dominance asks which components the application reaches only through a given component; articulation asks which components hold the undirected structure together. SBOM Lens reports both and \autoref{cp:evaluation} compares them.
+
+
 \subsection{HITS Hub and Authority Scores}
 \label{sec:hits}
+
+The HITS algorithm (\autoref{sec:centrality}) assigns each node two mutually reinforcing scores \citep{Kleinberg1999}. SBOM Lens computes them on the \emph{directed} graph with \texttt{nx.hits(G, max\_iter=200)}. NetworkX obtains the authority vector as the leading singular vector of the adjacency matrix \(\mathbf{A}\) --- equivalently, the principal eigenvector of \(\mathbf{A}^{\top}\mathbf{A}\) --- and the hub vector as \(\mathbf{h} = \mathbf{A}\mathbf{a}\), each normalised to sum to one over the graph. Scores for all nodes are returned by \texttt{GET /sboms/\{id\}/global-analysis}; the impact endpoint of \autoref{sec:blast-radius} also returns the two scores of the analysed component. If the computation fails to converge within the iteration limit, all scores are reported as zero.
+
+Under consumer-to-dependency edges, a high \textit{authority} score belongs to a component that is depended upon by components which themselves depend on many important libraries: a foundational library at the heart of the dependency graph. A high \textit{hub} score belongs to a component that depends on many such authorities: typically the application itself or an aggregating framework package. Authority is the more useful of the two for risk: it ranks libraries by how central they are to the dependency structure, weighting a consumer's vote by that consumer's own importance rather than merely counting consumers as in-degree does.
+
+Because the scores sum to one over the whole graph, they are shares rather than absolute values, and they shrink as the graph grows; they are therefore used to rank components within one SBOM, not to compare components across SBOMs of different sizes.
+
+
+\subsection{Spectral Exposure Score}
+\label{sec:spectral-exposure}
+
+The \textit{spectral exposure score} of a component is its entry in the leading eigenvector of the adjacency matrix of \(G_u\) --- its eigenvector centrality (\autoref{sec:centrality}). Let \(\lambda_1\) be the largest eigenvalue of that symmetric matrix and \(\mathbf{v}_1\) the corresponding eigenvector. By the Perron--Frobenius theorem the entries of \(\mathbf{v}_1\) can be taken non-negative on a connected graph. SBOM Lens reports, for each component \(i\),
+\[
+    s_i = \lambda_1 \cdot \frac{v_{1,i}}{\max_j v_{1,j}},
+\]
+through \texttt{GET /sboms/\{id\}/epidemic}. The ranking of components by \(s_i\) is exactly their ranking by eigenvector centrality; the scaling places the most exposed component at \(\lambda_1\), so that the scores share a unit with the spectral radius of \autoref{sec:ns-spectral-radius}. For graphs of up to 500 components the eigenpair is computed densely with \texttt{numpy.linalg.eigh}; for larger graphs, with the sparse solver \texttt{scipy.sparse.linalg.eigsh}, asking for the largest \emph{algebraic} eigenvalue. The distinction matters: a tree is bipartite, so its spectrum is symmetric and \(-\lambda_1\) has the same magnitude as \(\lambda_1\); a solver asked for the eigenvalue of largest magnitude may return either.
+
+The score reflects a component's position with respect to the whole graph rather than its immediate neighbourhood: a component scores highly if it is adjacent to components that themselves score highly. In the dependency graph this identifies the densely interlinked region through which a compromise would most readily travel, which is why the same eigenvector underlies the spread-potential measures of \autoref{sec:ns-spectral-radius}. The API field carrying \(s_i\) is named \texttt{r0} for historical reasons; it is not a basic reproduction number, and SBOM Lens runs no epidemic simulation (\autoref{sec:propagation-modelling}).
+
+Two caveats apply. The score is undirected, so it does not distinguish a component that many others depend on from one that depends on many others. And if \(G_u\) is disconnected, the leading eigenvector is concentrated on the component of the graph with the largest spectral radius, and every node elsewhere scores zero; the score then ranks only the dominant connected part of the graph.
+
+
+\subsection{Core Number}
+\label{sec:ns-kcore}
+
+The core number of a component is the largest \(k\) for which it belongs to the \(k\)-core of the graph (\autoref{sec:kcore}). SBOM Lens computes it with \texttt{nx.core\_number(}\(G_u\)\texttt{)}, the Batagelj--Zaversnik algorithm running in \(O(|E|)\) time \citep{Batagelj2003}, and returns every component's core number, the maximum core number \(k_{\max}\), and the components of the innermost core through \texttt{GET /sboms/\{id\}/kcore}. Self-referencing dependency entries, which NetworkX's implementation rejects, are dropped when the graph is built (\autoref{sec:graph-construction}).
+
+A high core number marks a component embedded in a densely interconnected region of the dependency graph: it and its neighbours are linked to one another many times over. Such components are hard to replace, because removing or substituting one affects many others that are themselves tightly linked. As with the other undirected measures, the core number says nothing about direction; a high value means dense interconnection, not depth in the dependency chain.
+
+
+\subsection{Edge Rankings and Abstraction Candidates}
+\label{sec:ns-optimizer}
+
+The optimiser endpoint (\texttt{GET /sboms/\{id\}/optimizer}) applies the spectral exposure score to two practical questions. First, which single dependency edge contributes most to the spread potential of the graph? Removing edge \(\{u, v\}\) from a symmetric adjacency matrix lowers \(\lambda_1\) by approximately \(2\,v_{1,u}\,v_{1,v}\) for a unit-norm \(\mathbf{v}_1\), a first-order perturbation estimate used in the literature on reducing the spectral radius by link removal \citep{VanMieghem2011}. SBOM Lens ranks every edge of \(G_u\) by this estimate and returns the top twenty, each with its estimated reduction as a percentage of \(\lambda_1\). Second, which components are candidates for an abstraction layer --- an internal wrapper that isolates the rest of the application from a widely used library? SBOM Lens takes every component with at least three direct consumers (\(\deg^-(v) \geq 3\)) and orders them by spectral exposure score, then by the number of consumers, returning the top twenty. Both outputs are heuristic aids to the analyst rather than measures in their own right: the edge estimate is a linear approximation, not a recomputed eigenvalue, and the candidate list has no threshold on the spectral score. They are included here because they show how the component-scale scores can be turned into remediation suggestions; they are not part of the evaluation in \autoref{cp:evaluation}.
+
 
 \section{Cluster Scale}
 \label{sec:cluster-scale}
 
+Cluster-scale measures describe groups of components. They answer questions that neither a single component nor the whole graph can: which parts of the application form coherent subsystems, whether the graph has a cyclic core, and whether its best-connected components are also connected to one another.
+
+
+\subsection{Louvain Communities}
+\label{sec:ns-communities}
+
+SBOM Lens partitions the dependency graph into communities with the Louvain algorithm (\autoref{sec:community-detection}) \citep{Blondel2008}, calling \texttt{louvain\_communities(}\(G_u\)\texttt{, seed=42)} with NetworkX's defaults of unit edge weights and resolution one. Louvain visits nodes in a random order, and the fixed seed makes the partition reproducible for a given graph and library version. \texttt{GET /sboms/\{id\}/communities} returns the number of communities, the community of every component, and the size of every community; the frontend can colour the graph by community or collapse each community into a single node.
+
+In an SBOM, a community is a group of components that depend on one another more than on the rest of the graph: typically a framework and its plugins, or a library together with its private helper packages. For risk, the partition shows where a vulnerability is likely to stay contained and where it is not. A vulnerable component inside a community with few edges leaving it affects mainly that community; a vulnerable component on the boundary between communities links subsystems that would otherwise be isolated. The modularity score of the partition is not reported by the endpoint, and communities are computed on the undirected projection.
+
+
+\subsection{Bow-Tie Decomposition}
+\label{sec:ns-bowtie}
+
+The bow-tie decomposition, introduced for the graph of the Web \citep{Broder2000}, arranges a directed graph around its largest strongly connected component (SCC): the \textit{core}. The IN set contains the nodes that can reach the core, the OUT set the nodes reachable from it, and the remaining nodes --- tendrils, tubes and disconnected parts --- are grouped together. SBOM Lens computes the SCCs of the directed graph with \texttt{nx.strongly\_connected\_components}, takes the largest as the core, and derives IN and OUT by directed reachability; \texttt{GET /sboms/\{id\}/graph-theory} returns the size and share of each set together with the number of non-trivial SCCs. Under consumer-to-dependency edges, IN holds the consumers of the core and OUT its dependencies.
+
+The decomposition is meaningful only when the graph has a cyclic core. In an acyclic dependency graph every SCC contains a single component, and the ``largest'' one is an arbitrary node. SBOM Lens therefore reports the IN, OUT and remainder sets only when the core contains more than one component, and otherwise reports just that no cyclic core exists. When a core does exist, it identifies a set of mutually dependent components that must be installed, updated and trusted together, and the relative sizes of IN and OUT show how much of the application sits upstream and downstream of that entanglement.
+
+
+\subsection{Rich-Club Coefficient}
+\label{sec:ns-richclub}
+
+The rich-club coefficient measures whether the best-connected components of a graph are also connected to one another \citep{Colizza2006}. For each degree \(k\), let \(N_k\) be the number of nodes with degree greater than \(k\) and \(E_k\) the number of edges among them; the coefficient is
+\[
+    \phi(k) = \frac{2 E_k}{N_k (N_k - 1)},
+\]
+the density of the subgraph formed by those nodes. SBOM Lens computes \(\phi(k)\) on \(G_u\) with \texttt{nx.rich\_club\_coefficient} and returns the full curve, its maximum, and the smallest \(k\) at which \(\phi(k)\) exceeds \(0.5\), through \texttt{GET /sboms/\{id\}/graph-theory}.
+
+A rising curve means that the hubs of the dependency graph form a densely interlinked club: widely used libraries that also depend on one another, so that a compromise in one is close to all of them. The coefficient is reported unnormalised. Its normalised form divides \(\phi(k)\) by the value expected in a random graph with the same degree sequence, and only that ratio shows whether the club is denser than chance \citep{Colizza2006}. The unnormalised curve also rises naturally with \(k\) as the high-degree subgraph shrinks, so it is read here as a description of the hubs' interconnection, not as evidence of a rich-club effect. The \(0.5\) cut-off is a presentation threshold without theoretical basis.
+
+
 \section{Whole-Graph Scale}
 \label{sec:structural-risk}
+
+Whole-graph measures summarise the dependency graph of a project in a single number or distribution. They serve two purposes: they let an analyst compare the structural risk of different applications, or of different versions of the same one, and they describe the dependency graphs of the evaluation dataset in \autoref{cp:evaluation} (RQ1).
+
+
+\subsection{Spectral Radius and Epidemic Threshold}
+\label{sec:ns-spectral-radius}
+
+The spectral radius \(\lambda_1\) of \(G_u\), computed as in \autoref{sec:spectral-exposure}, summarises in one number how readily a contagion could spread over the graph. For a susceptible--infected--susceptible process on a network, in which each infected node infects each neighbour at rate \(\beta\) and recovers at rate \(\delta\), an infection dies out when \(\beta / \delta < 1/\lambda_1\) \citep{Wang2003}; the quantity \(1/\lambda_1\) is therefore called the \textit{epidemic threshold} of the graph. A larger spectral radius means a lower threshold: the graph can sustain spreading at lower transmission rates. \texttt{GET /sboms/\{id\}/epidemic} returns both \(\lambda_1\) and \(1/\lambda_1\).
+
+SBOM Lens uses these quantities as a static structural index, not as a prediction. Software compromise does not follow a susceptible--infected--susceptible process with homogeneous rates, and no such process is simulated (\autoref{sec:propagation-modelling}). What the spectral radius does capture is that a graph with densely interconnected hubs offers more routes for any kind of propagation than a sparse, tree-like one of the same size. For a star with \(n\) leaves \(\lambda_1 = \sqrt{n}\), and for a path it stays below two, so \(\lambda_1\) grows with hub concentration rather than with size alone. For the reasons given in the introduction to this chapter, it is computed on the undirected projection.
+
+
+\subsection{Degree Entropy}
+\label{sec:ns-entropy}
+
+SBOM Lens computes the Shannon entropy \citep{Shannon1948} of the out-degree distribution,
+\[
+    H = -\sum_k p(k) \log_2 p(k),
+\]
+where \(p(k)\) is the fraction of components with exactly \(k\) direct dependencies, including components with none. \texttt{GET /sboms/\{id\}/audit} returns \(H\) in bits with a label: \textit{low} below \(1.5\) bits, \textit{medium} up to \(3.0\) bits, and \textit{high} above.
+
+Low entropy means that most components have a similar number of direct dependencies --- typically a graph dominated by leaf packages with none and a few components with a handful. High entropy means a heterogeneous mix, from leaves to components that each pull in many dependencies. Because the edges point from consumer to dependency, this is the distribution of dependencies per component, not of consumers per component; concentration of consumers on a few popular libraries is captured instead by the in-degree distribution of \autoref{sec:ns-powerlaw}. Two limitations apply: \(H\) is bounded by the logarithm of the number of distinct out-degree values, so it tends to grow with graph size, and the label thresholds are heuristic.
+
+
+\subsection{Cycles and Strongly Connected Components}
+\label{sec:ns-cycles}
+
+A dependency cycle means that no component on it can be installed or updated independently of the others (\autoref{sec:dags}). SBOM Lens enumerates the simple cycles of the directed graph with \texttt{nx.simple\_cycles}, which implements Johnson's algorithm restricted to the SCCs \citep{Johnson1975}, stopping after 1{,}000 cycles; \texttt{GET /sboms/\{id\}/audit} returns the number of cycles found, the components that lie on them, and the first ten cycles. The number of non-trivial SCCs, those with more than one component, is reported with the bow-tie decomposition (\autoref{sec:ns-bowtie}). In a dependency graph built from a lockfile, cycles are rare and each one is worth an analyst's attention: it either reflects a genuine mutual dependency between packages or an artefact of how the SBOM was generated.
+
+
+\subsection{Version Conflicts}
+\label{sec:ns-version-conflicts}
+
+A \textit{version conflict} is the same package appearing in the dependency graph at two or more distinct versions. It typically arises from the diamond pattern of \autoref{sec:dags}: two components require incompatible versions of a shared dependency, and the package manager installs both. SBOM Lens groups components by their group and name, as recorded in the SBOM, and reports every package with at least two distinct non-empty versions through \texttt{GET /sboms/\{id\}/audit} (under the key \texttt{diamonds}, for historical reasons). The detection examines component identities only; it does not search the edges for the diamond pattern itself.
+
+Each version conflict is a maintenance and security liability. The same package must be patched in several places, a fix applied to one version leaves the others exposed, and vulnerability scanners report the package once per version. Versions are compared as literal strings, so two spellings of the same version would count as a conflict; SBOMs generated from lockfiles record exact resolved versions, which makes this unlikely.
+
+
+\subsection{Namespace Concentration}
+\label{sec:ns-concentration}
+
+Namespace concentration measures how much of a dependency graph comes from a single publisher. SBOM Lens derives a namespace for each component from its Package URL --- the scope of a scoped npm package, the first dotted segments of a Java-style name, or the leading token of a PyPI name --- and reports the ten largest namespaces with their share of the components that have one, through \texttt{GET /sboms/\{id\}/audit}. A share above 60\% is flagged as a concentration risk. A high concentration means that the trustworthiness of one organisation's publishing process, and the security of its accounts, underpins a large part of the application, which is precisely the exposure exploited when a maintainer or a publishing account is compromised (\autoref{sec:attack-taxonomy}). The namespace rules are heuristic, unscoped npm packages have no namespace and are excluded from the denominator, and the 60\% threshold is a presentation choice.
+
+
+\subsection{Degree Distribution and Power-Law Fit}
+\label{sec:ns-powerlaw}
+
+Whether the in-degree distribution follows a power law (\autoref{sec:scale-free}) determines whether a few components carry most of the dependency relationships. SBOM Lens fits a discrete power law \(p(k) \propto k^{-\alpha}\) for \(k \geq x_{\min}\) to the in-degrees of all components with at least one consumer, using the method of \citet{Clauset2009} as implemented in the \texttt{powerlaw} package \citep{Alstott2014}. The exponent \(\alpha\) is estimated by maximum likelihood for each candidate lower bound \(x_{\min}\), and the \(x_{\min}\) that minimises the Kolmogorov--Smirnov distance \(D\) between the fitted model and the data is retained. \texttt{GET /sboms/\{id\}/graph-theory} returns \(\alpha\), its standard error \(\sigma\), \(x_{\min}\), \(D\), and the number of components in the fitted tail, together with the five components of highest in-degree and the raw degree histogram. When fewer than three components have consumers, or the in-degrees take fewer than two distinct values, no fit is attempted.
+
+Maximum likelihood with a fitted lower bound is used because the more common alternative --- a least-squares line through the logarithmic histogram --- gives biased estimates of \(\alpha\), and a high coefficient of determination on such a plot is not evidence of a power law \citep{Clauset2009}. Even so, a fitted \(\alpha\) is a description of the tail, not a test: whether a power law describes the data better than an alternative such as a log-normal requires a separate likelihood-ratio comparison, which SBOM Lens does not perform. The Kolmogorov--Smirnov distance \(D\) is reported so that poor fits can be recognised. A small \(\alpha\) with a large tail indicates heavy concentration: a few components are depended upon by a large share of the graph, and a vulnerability in one of them has an outsized blast radius.
+
+
+\subsection{Small-World Coefficient}
+\label{sec:ns-small-world}
+
+The small-world coefficient compares a graph's clustering and path length with those of a random graph of the same size \citep{WattsStrogatz1998,HumphriesGurney2008}:
+\[
+    \sigma = \frac{C / C_{\mathrm{rand}}}{L / L_{\mathrm{rand}}},
+\]
+where \(C\) is the average clustering coefficient and \(L\) the average shortest path length (\autoref{sec:small-world}). SBOM Lens computes it on the largest connected component of \(G_u\), with \(n\) nodes and \(m\) edges. \(C\) is given by \texttt{nx.average\_clustering}. \(L\) is exact for components of up to 500 nodes; for larger ones it is estimated from breadth-first searches from 500 source nodes drawn with a fixed seed, so the estimate is reproducible. The random baseline uses the closed-form Erdős--Rényi approximations \(C_{\mathrm{rand}} = p\) and \(L_{\mathrm{rand}} = \ln n / \ln (np)\), with \(p = 2m / (n(n-1))\). \texttt{GET /sboms/\{id\}/graph-theory} returns \(\sigma\), \(C\), \(L\), both ratios, and the size and share of the largest component.
+
+A value of \(\sigma\) well above one means that components form tightly clustered neighbourhoods while any two remain a few hops apart: a vulnerability introduced anywhere is structurally close to everything. The closed-form baseline ignores the degree sequence of the graph, which a baseline built from degree-preserving randomised graphs would respect; \(\sigma\) is therefore a coarse indicator, reported alongside \(C\) and \(L\) themselves. Dependency graphs are close to trees, in which \(C = 0\) and hence \(\sigma = 0\); a non-zero \(\sigma\) already indicates that some components share dependencies with their own dependencies.
+
+
+\section{Summary}
+\label{sec:ns-summary}
+
+\autoref{tab:ns-summary} lists every measure described in this chapter together with the graph it is computed on and the endpoint that returns it. Read together with \autoref{cp:vuln-analysis}, the measures cover the three scales of the central claim. At the component scale, blast radius and dominated sets describe a specific vulnerability, while articulation points, HITS authority, spectral exposure and core number describe structural importance whether or not a vulnerability is known. At the cluster scale, communities, the bow-tie core and the rich club describe how components group together. At the whole-graph scale, the spectral radius, entropy, cycles, version conflicts, concentration and the degree distribution characterise the dependency graph as a whole.
+
+None of these can be computed from a flat inventory. A list of components with their versions and CVEs contains no edges, so it has no degree, no reachability, no dominance, no communities and no spectrum. The only structural information a flat inventory holds is the set of package names and versions, from which version conflicts and namespace concentration --- but nothing else in the table --- could be derived. Whether the structural view actually changes which components an analyst would prioritise is the question \autoref{cp:evaluation} answers empirically, by comparing rankings based on these measures with a ranking by CVSS score alone.
+
+\begin{table}[!htpb]
+    \centering
+    \small
+    \caption[Structural measures computed by SBOM Lens]{Structural measures computed by SBOM Lens, by scale. \(G\): directed dependency graph; \(G_u\): its undirected projection.}
+    \label{tab:ns-summary}
+    \begin{tabular}{lllp{3.2cm}}
+        \toprule
+        \textbf{Measure} & \textbf{Scale} & \textbf{Graph} & \textbf{Endpoint} \\
+        \midrule
+        Articulation points & Component & \(G_u\) & \texttt{global-analysis} \\
+        Bridges & Component & \(G_u\) & \texttt{optimizer} \\
+        HITS hub and authority & Component & \(G\) & \texttt{global-analysis}, \texttt{impact} \\
+        Spectral exposure score & Component & \(G_u\) & \texttt{epidemic} \\
+        Core number & Component & \(G_u\) & \texttt{kcore} \\
+        Edge rankings, abstraction candidates & Component & \(G_u\), \(G\) & \texttt{optimizer} \\
+        Louvain communities & Cluster & \(G_u\) & \texttt{communities} \\
+        Bow-tie decomposition & Cluster & \(G\) & \texttt{graph-theory} \\
+        Rich-club coefficient & Cluster & \(G_u\) & \texttt{graph-theory} \\
+        Spectral radius, epidemic threshold & Whole graph & \(G_u\) & \texttt{epidemic} \\
+        Out-degree entropy & Whole graph & \(G\) & \texttt{audit} \\
+        Cycles & Whole graph & \(G\) & \texttt{audit} \\
+        Version conflicts & Whole graph & components & \texttt{audit} \\
+        Namespace concentration & Whole graph & components & \texttt{audit} \\
+        In-degree power-law fit & Whole graph & \(G\) & \texttt{graph-theory} \\
+        Small-world coefficient & Whole graph & \(G_u\) (largest component) & \texttt{graph-theory} \\
+        \bottomrule
+    \end{tabular}
+\end{table}

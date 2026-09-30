@@ -15,7 +15,7 @@ Agreed order of work (2026-09-30). Decisions behind each step are in `docs/adr/`
    - [ ] Outputs: one JSON per SBOM (all metrics, `/impact` for each vulnerable node, timings), a combined CSV, the query date and the pinned commits.
    - [ ] Push to GitHub; Zenodo snapshot at submission.
 3. **Thesis writing** (can overlap with step 2)
-   - [ ] Ch6: component, cluster and whole-graph scales (see the chapter's TODO comment).
+   - [x] Ch6: component, cluster and whole-graph scales.
    - [ ] Ch3: gap analysis (3.4) first, then 3.2 and 3.3 working back from it.
    - [ ] Ch8: everything except the summary of findings.
    - [ ] Ch7: dataset and pipeline, method and RQs, threats to validity.
