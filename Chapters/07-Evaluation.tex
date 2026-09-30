@@ -1,17 +1,20 @@
 \chapter[Evaluation]{Evaluation}
 \label{cp:evaluation}
 
-% TODO: chapter not yet written. Decisions: docs/adr/0003; vocabulary: CONTEXT.md.
+% TODO: chapter not yet written. Decisions: docs/adr/0003, 0004; vocabulary: CONTEXT.md.
 % Write now: dataset and pipeline, method and RQs, threats to validity. Results wait for data.
-% Dataset: ~30 projects each for npm, PyPI and Maven, pinned to 2-3-year-old releases, SBOMs from cdxgen;
-%   kept only if >=1 known vulnerability and <=1000 components. Vulnerabilities from NVD+OSV+GHSA through
-%   the tool's own vulnerabilityAPI.js. Data and pipeline in the sbom-lens-eval repo (GitHub + Zenodo).
+% Dataset: ~90 npm (JavaScript/TypeScript) repositories from GitHub search by stars; latest release tag
+%   <= 2024-03-31; committed lockfile; no workspaces monorepos; production dependency graph (cdxgen
+%   --required-only); kept only if >=1 known vulnerability and <=1000 components. Every rejection is logged
+%   (selection funnel). Vulnerabilities from OSV through the tool's own vulnerabilityAPI.js; severity band
+%   UNKNOWN is excluded from CVSS rankings and its count reported. Data and pipeline in sbom-lens-eval.
 % RQ1 topology/profile: size, depth, direct vs transitive, entropy, SCCs, version conflicts, power-law,
 %   small-world, bow-tie, rich-club.
 % RQ2 divergence from flat-inventory analysis: structural vs CVSS-only ranking (Kendall tau, top-k overlap).
 % RQ3 hidden exposure: transitive-only vulnerable components, vulnerable chokepoints, vulnerability reach.
 % No RQ4; a short performance paragraph (time vs graph size) instead.
-% Threats to validity: selection bias from both filters, vulnerability-query date, cdxgen accuracy.
+% Threats to validity: selection bias from the filters (lockfile, vulnerable, <=1k, no monorepos);
+%   npm-only external validity; OSV-only coverage; vulnerability-query date; cdxgen accuracy; UNKNOWN share.
 
 \section{Dataset and Collection Pipeline}
 \label{sec:eval-dataset}

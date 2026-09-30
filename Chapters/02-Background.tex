@@ -219,7 +219,7 @@ SBOM Lens adopts the first and leaves the second out of scope. The spectral radi
 \section{Vulnerability Databases}
 \label{sec:vuln-databases}
 
-SBOM Lens overlays vulnerability data on the dependency graph to identify which components carry known security risks and to quantify the severity of those risks. This section defines the three databases from which SBOM Lens sources vulnerability data --- CVE/NVD, OSV, and GitHub Security Advisories --- and establishes the CVSS v3.1 scoring system used to quantify severity. Definitions here are referenced without re-explanation in \autoref{cp:vuln-analysis}.
+SBOM Lens overlays vulnerability data on the dependency graph to identify which components carry known security risks and to quantify the severity of those risks. This section introduces the main vulnerability databases --- CVE/NVD, OSV, and GitHub Security Advisories --- explains why SBOM Lens sources its data from OSV, and establishes the CVSS v3.1 scoring system used to quantify severity. Definitions here are referenced without re-explanation in \autoref{cp:vuln-analysis}.
 
 
 \subsection{CVE and the National Vulnerability Database}
@@ -229,7 +229,7 @@ Common Vulnerabilities and Exposures (CVE) is a programme maintained by MITRE (f
 
 The NIST National Vulnerability Database (NVD) enriches CVE entries with CVSS base scores (versions 2.0, 3.x, and 4.0), Common Platform Enumeration (CPE) product matching strings, and categorical severity ratings \citep{NVD}. NVD provides the authoritative CVSS v3.1 base scores for most published CVEs and is the primary reference for severity data in the security industry.
 
-SBOM Lens queries NVD via its REST API v2.0 (endpoint \texttt{/rest/json/cves/2.0} for CVE lookup). NVD is used as a secondary source after OSV because NVD's primary product identifier is CPE rather than purl, requiring a name-and-version mapping step that introduces matching imprecision. The CPE format, \texttt{cpe:2.3:a:<vendor>:<product>:<version>:...}, is less precise for open-source packages than purl-based matching: the same package may have multiple CPE strings or none at all. This limitation is discussed in \autoref{cp:vuln-analysis}.
+SBOM Lens does not query NVD directly. NVD's primary product identifier is CPE rather than purl, so matching an SBOM component against NVD requires a name-and-version mapping step that introduces imprecision. The CPE format, \texttt{cpe:2.3:a:<vendor>:<product>:<version>:...}, is less precise for open-source packages than purl-based matching: the same package may have multiple CPE strings or none at all. This limitation is discussed in \autoref{cp:vuln-analysis}.
 
 
 \subsection{Open Source Vulnerabilities (OSV)}
@@ -237,7 +237,7 @@ SBOM Lens queries NVD via its REST API v2.0 (endpoint \texttt{/rest/json/cves/2.
 
 The Open Source Vulnerabilities (OSV) database is a distributed vulnerability database designed natively for open-source ecosystems \citep{OSV}. Its schema, maintained by the OpenSSF, defines version range bounds using \texttt{introduced} and \texttt{fixed} fields rather than fixed version lists, enabling precise matching against any version in a given range. OSV aggregates vulnerability data from over fifty upstream sources including RustSec, PyPI advisories, npm advisories, the GitHub Advisory Database, the Debian Security Tracker, and the Alpine Security Database.
 
-Each OSV entry carries an \texttt{aliases} field that cross-references CVE IDs and GHSA identifiers, enabling deduplication across sources. OSV's query API (\texttt{/v1/query}) accepts a package purl directly, making it the most precise source for open-source component vulnerability matching and the primary vulnerability source in SBOM Lens. The integration pipeline is described in \autoref{cp:vuln-analysis}.
+Each OSV entry carries an \texttt{aliases} field that cross-references CVE IDs and GHSA identifiers, enabling deduplication across sources. OSV's query API (\texttt{/v1/query}) accepts a package purl directly, making it the most precise source for open-source component vulnerability matching and the vulnerability source used by SBOM Lens. The integration pipeline is described in \autoref{cp:vuln-analysis}.
 
 
 \subsection{GitHub Security Advisories}
@@ -245,9 +245,7 @@ Each OSV entry carries an \texttt{aliases} field that cross-references CVE IDs a
 
 The GitHub Advisory Database is a curated collection of security advisories for open-source packages, using GHSA identifiers in the format \texttt{GHSA-xxxx-xxxx-xxxx} \citep{GHSA}. Its strongest ecosystem coverage is for npm (JavaScript), PyPI (Python), RubyGems, Maven, NuGet (.NET), Go, and Rust. GitHub advisories are published in OSV format and are therefore aggregated by the OSV database.
 
-Because GHSA advisories propagate to OSV, querying OSV subsumes most GHSA coverage. SBOM Lens additionally queries GHSA directly via GitHub's GraphQL API for npm and PyPI packages to capture advisories published on GitHub before they have propagated to the OSV aggregation pipeline, exploiting the recency advantage for those two ecosystems.
-
-The three-source integration --- NVD, OSV, and GHSA --- is a deliberate design choice to maximise vulnerability coverage across package ecosystems and version ranges. Findings from all three sources are deduplicated on the pair (CVE ID, purl): a CVE is recorded once per affected component, and when the same pair is returned by more than one source the first record written is kept, without merging severity scores across sources. The deduplication logic and its trade-offs are presented in full in \autoref{cp:vuln-analysis}.
+Because GHSA advisories are aggregated by OSV, querying OSV covers them without a separate GitHub query. SBOM Lens therefore queries OSV alone and relies on it to reach GHSA and the other upstream databases. Findings are stored once per (CVE ID, purl) pair; the deduplication logic is presented in \autoref{cp:vuln-analysis}.
 
 
 \subsection{CVSS v3.1 Scoring System}

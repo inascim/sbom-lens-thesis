@@ -4,8 +4,10 @@
 % TODO: chapter not yet written. Everything except the summary of findings can be written now.
 % Contributions: map one-to-one to RO1-RO4 (Section 1.3).
 % Limitations: in-memory persistence; CycloneDX only; no EPSS; no VEX consumption (Section 2.x points
-%   here for the VEX trade-off); NVD rate limits without an API key; <=1k-component, vulnerable-only sample.
-% Future work: propagation simulation (docs/adr/0001), EPSS, persistent storage, SPDX support, VEX.
+%   here for the VEX trade-off); OSV as the only vulnerability source; no CVSS 4.0 scoring (UNKNOWN band);
+%   npm-only, <=1k-component, vulnerable-only evaluation sample.
+% Future work: propagation simulation (docs/adr/0001), EPSS, persistent storage, SPDX support, VEX,
+%   direct NVD/GHSA integration, CVSS 4.0 scoring, replicating the evaluation for PyPI and Maven.
 
 \section{Summary of Findings}
 \label{sec:concl-findings}
