@@ -1,23 +1,66 @@
 \chapter[Conclusion]{Conclusion}
 \label{cp:conclusion}
 
-% TODO: chapter not yet written. Everything except the summary of findings can be written now.
-% Contributions: map one-to-one to RO1-RO4 (Section 1.3).
-% Limitations: in-memory persistence; CycloneDX only; no EPSS; no VEX consumption (Section 2.x points
-%   here for the VEX trade-off); OSV as the only vulnerability source; no CVSS 4.0 scoring (UNKNOWN band);
-%   npm-only, <=1k-component, vulnerable-only evaluation sample.
-% Future work: propagation simulation (docs/adr/0001), EPSS, persistent storage, SPDX support, VEX,
-%   direct NVD/GHSA integration, CVSS 4.0 scoring, replicating the evaluation for PyPI and Maven,
-%   call-graph reachability to prune the vulnerability overlay (Section 3.2.3).
+This thesis set out to show that the dependency relationships recorded in a Software Bill of Materials are an analytical resource, not just a record. Existing SBOM tooling treats an SBOM as an inventory of components and their known vulnerabilities; SBOM Lens treats it as a directed dependency graph and analyses that graph. This chapter summarises what the evaluation found (\autoref{sec:concl-findings}), revisits the research objectives of \autoref{sec:objectives} against the contributions made (\autoref{sec:concl-contributions}), states the limitations of the work (\autoref{sec:concl-limitations}), and identifies directions for future work (\autoref{sec:concl-future}).
+
 
 \section{Summary of Findings}
 \label{sec:concl-findings}
 
+% TODO: write once the results of Chapter 7 exist. One paragraph per research question:
+%   RQ1 -- what the production dependency graphs of the npm applications look like (size, depth,
+%          degree distribution, topology);
+%   RQ2 -- how far structural rankings diverge from the CVSS-only ranking (Kendall tau, top-k overlap);
+%   RQ3 -- hidden exposure: transitive-only vulnerable components, vulnerable chokepoints,
+%          vulnerability reach (all severities and CRITICAL only).
+%   Close with the answer to the central claim: does the structural view change what an analyst would
+%   prioritise?
+
+
 \section{Contributions}
 \label{sec:concl-contributions}
+
+The four research objectives of \autoref{sec:objectives} map one-to-one to the contributions of this work.
+
+\textbf{Graph construction pipeline (RO1).} SBOM Lens ingests CycloneDX JSON SBOMs and constructs a directed dependency graph in which every component is a node and every declared dependency a consumer-to-dependency edge (\autoref{cp:system-design}). The graph is built once at ingestion, cached, and shared by every analysis, and it is rendered interactively with Cytoscape.js, where the analyst can explore, edit and export it. Edits are written back to the backend, which rebuilds the graph and invalidates every cached analysis, so the displayed results always describe the current graph.
+
+\textbf{Vulnerability integration (RO2).} Every component with a Package URL is matched against OSV, which aggregates the GitHub Advisory Database and other open-source advisory sources (\autoref{cp:vuln-analysis}). Severity is derived from the CVSS v3.1 vector by a client-side implementation of the specification, falling back to the advisory's own severity label, and otherwise recorded as unknown rather than silently treated as low. Vulnerable components are coloured on the graph by their highest severity band, and for any vulnerable component the analyst obtains its blast radius, the dependency paths through which it enters the application, and its dominated set --- the components that could not be reached without it.
+
+\textbf{Graph-based structural risk analysis (RO3).} SBOM Lens computes structural measures at three scales (\autoref{cp:network-sci}): per component (articulation points and bridges, HITS scores, a spectral exposure score, core numbers), per cluster (Louvain communities, the bow-tie decomposition, the rich-club coefficient), and for the whole graph (the spectral radius and epidemic threshold, degree entropy, cycles, version conflicts, namespace concentration, the in-degree distribution and the small-world coefficient). For each measure, the thesis states precisely what is computed, on which graph, and how the result should be read --- including where a measure is only a coarse indicator.
+
+\textbf{Empirical evaluation (RO4).} The evaluation of \autoref{cp:evaluation} applies SBOM Lens to the production dependency graphs of npm applications, collected reproducibly from public repositories at fixed release tags and restricted to applications with at least one critical known vulnerability. The collection pipeline, the SBOMs and every analysis result are published with the thesis, so each reported number can be regenerated.
+% TODO: add one sentence with the headline result of RQ2 once available.
+
+Beyond the objectives, the work contributes a clarification of the vocabulary of structural SBOM analysis: it distinguishes the blast radius of a component from its dominated set, chokepoints from articulation points, version conflicts from the diamond pattern that causes them, and static spectral analysis from propagation simulation. Several measures commonly reported in the literature and in earlier versions of SBOM Lens were found, on inspection, to compute something other than their names suggested; the thesis reports each measure as it is actually computed.
+
 
 \section{Limitations}
 \label{sec:concl-limitations}
 
+\textbf{Vulnerability data.} SBOM Lens relies on OSV as its only vulnerability source. OSV aggregates the main open-source advisory databases, but an advisory reaches SBOM Lens only once OSV has ingested it, and vulnerabilities recorded only in NVD, without an open-source advisory, are not reported. Severity is computed from CVSS v3.1 vectors only; records that carry only a CVSS 4.0 vector fall back to the advisory's own label or to the unknown band. Exploit likelihood (EPSS) and known-exploitation catalogues are not integrated, so severity describes potential impact rather than the probability of exploitation.
+
+\textbf{Embedded vulnerability data (VEX).} SBOM Lens ignores the \texttt{vulnerabilities} array of a CycloneDX document (\autoref{sec:cyclonedx-structure}), which may carry Vulnerability Exploitability eXchange statements from the software's producer. Querying OSV directly gives every analysis the same, current vulnerability data regardless of what the producer chose to embed, and avoids trusting producer-supplied assessments. The cost is that a producer's statement that a vulnerability is not exploitable in their product --- often the most useful information for prioritisation --- is not taken into account, so SBOM Lens may report vulnerabilities that the producer has already assessed as irrelevant.
+
+\textbf{Component-level analysis.} All analysis is at the level of components. A component in the blast radius of a vulnerability depends on the vulnerable component, but may never execute the vulnerable code (\autoref{sec:rw-call-graphs}); exposure is therefore over-approximated.
+
+\textbf{Directed and undirected measures.} Several measures --- articulation points, bridges, core numbers, communities, the rich-club coefficient and all spectral measures --- are computed on the undirected projection of the dependency graph, either because they are defined only for undirected graphs or because, as for the spectral radius, they vanish on acyclic directed graphs (\autoref{cp:network-sci}). These measures describe how densely components are interconnected, not the direction in which dependencies run, and they must be read accordingly.
+
+\textbf{Heuristic thresholds and baselines.} Some outputs rest on conventions rather than theory: the labels of the degree entropy, the 60\% namespace-concentration flag, the 0.5 rich-club threshold, and the fan-in threshold for abstraction candidates. The small-world coefficient uses a closed-form random baseline that ignores the degree sequence, the rich-club coefficient is not normalised against a null model, and the power-law fit is not compared against alternative distributions. These outputs are reported as descriptive indicators, not as statistical tests.
+
+\textbf{Evaluation sample.} The evaluation covers npm applications only, at release tags on or before 31 March 2024, with a committed lockfile, between 50 and 1{,}000 components in their production dependency graph, and at least one critical known vulnerability. Each of these filters shapes the sample: the results describe vulnerable, medium-sized npm applications and may not transfer to other ecosystems, where duplicate versions are rarer and dependency trees shallower, or to very large applications. Vulnerability data reflects the date on which OSV was queried.
+
+\textbf{Implementation.} SBOM Lens is a research prototype. It keeps all state in memory, so SBOMs and vulnerability records are lost when the backend restarts; it has no authentication and is intended as a single-user local tool; and it accepts CycloneDX JSON only.
+
+
 \section{Future Work}
 \label{sec:concl-future}
+
+\textbf{Propagation simulation.} SBOM Lens analyses the dependency graph statically. A natural extension is to simulate how a compromise spreads over time, with an epidemic model such as SIR run on the dependency graph (\autoref{sec:propagation-modelling}). The spectral radius already computed by SBOM Lens would then serve as a check on the simulation, and the simulated reach could be compared with the static vulnerability reach reported in \autoref{cp:evaluation}.
+
+\textbf{Richer vulnerability data.} Integrating EPSS scores and known-exploitation catalogues would let structural measures be combined with the likelihood of exploitation, not only with severity. Direct integration of NVD by CPE and of the GitHub Advisory Database by version range would reduce dependence on OSV's aggregation, and a CVSS 4.0 calculator would remove the unknown band for records that carry only a version-4 vector. Consuming VEX statements from the SBOM would let the producer's exploitability assessments suppress irrelevant findings.
+
+\textbf{Reachability.} Combining the component-level graph with call-graph reachability (\autoref{sec:rw-call-graphs}) would prune the vulnerability overlay to vulnerabilities whose code the application can actually execute, where source code is available.
+
+\textbf{Broader evaluation.} Replicating the evaluation for PyPI and Maven applications would test whether the findings hold in ecosystems with different dependency resolution rules. A user study with security analysts would test the question the metric-based evaluation cannot: whether the structural view changes the decisions analysts actually make.
+
+\textbf{Platform.} Persistent storage, support for SPDX input, and comparison of SBOMs across versions of the same application would turn the prototype into a tool for continuous use, in which the structural risk of an application could be tracked as its dependencies evolve.

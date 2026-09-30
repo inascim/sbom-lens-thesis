@@ -17,7 +17,7 @@ Agreed order of work (2026-09-30). Decisions behind each step are in `docs/adr/`
 3. **Thesis writing** (can overlap with step 2)
    - [x] Ch6: component, cluster and whole-graph scales.
    - [x] Ch3: gap analysis, research clusters, case studies, per-tool prose.
-   - [ ] Ch8: everything except the summary of findings.
+   - [x] Ch8: everything except the summary of findings.
    - [ ] Ch7: dataset and pipeline, method and RQs, threats to validity.
 4. **After data collection**
    - [ ] Ch7: RQ1–RQ3 results and the performance paragraph.
