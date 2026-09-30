@@ -9,10 +9,14 @@
 %   all severities kept for analysis. Every rejection is logged
 %   (selection funnel). Vulnerabilities from OSV through the tool's own vulnerabilityAPI.js; severity band
 %   UNKNOWN is excluded from CVSS rankings and its count reported. Data and pipeline in sbom-lens-eval.
-% RQ1 topology/profile: size, depth, direct vs transitive, entropy, SCCs, version conflicts, power-law,
-%   small-world, bow-tie, rich-club.
-% RQ2 divergence from flat-inventory analysis: structural vs CVSS-only ranking (Kendall tau, top-k overlap).
-% RQ3 hidden exposure: transitive-only vulnerable components, vulnerable chokepoints, vulnerability reach.
+% RQ1 profile (median, IQR over 90 SBOMs): nodes, edges, max depth, direct vs transitive share, out-degree
+%   entropy, cycles/non-trivial SCCs, version conflicts, power-law alpha/x_min/D (where fitted), small-world
+%   sigma/C/L, bow-tie core present, max rich-club phi, spectral radius and epidemic threshold.
+% RQ2 (docs/adr/0005): per SBOM, rank vulnerable components by worst severity band vs by blast-radius size
+%   and by HITS authority; Kendall tau-b per SBOM; overlap of CRITICAL set with equally many top structural.
+% RQ3 (all severities): transitive-only share of vulnerable components (depth >= 2 from impact paths);
+%   vulnerable chokepoints (non-empty dominated set) and what they dominate; vulnerability reach (share of
+%   non-root nodes inside at least one vulnerable blast radius).
 % No RQ4; a short performance paragraph (time vs graph size) instead.
 % Threats to validity: selection bias from the filters (lockfile, vulnerable, <=1k, no monorepos);
 %   npm-only external validity; OSV-only coverage; vulnerability-query date; cdxgen accuracy; UNKNOWN share.

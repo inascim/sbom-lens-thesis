@@ -29,6 +29,13 @@ _Avoid_: dominator tree (that is the whole structure, not one node's set)
 The share of the dependency graph that lies inside the blast radius of at least one vulnerable component — a static measure, not a simulated one.
 _Avoid_: spread, propagation (when meaning this static measure)
 
+**Transitive-only vulnerable component**:
+A vulnerable component that the application does not declare directly: its shortest dependency path from the root has length two or more.
+_Avoid_: indirect vulnerability, hidden dependency
+
+**Vulnerable chokepoint**:
+A vulnerable component that is also a chokepoint: part of the application can be reached only through it.
+
 **Chokepoint**:
 A component with a non-empty dominated set — a single point that the application cannot route around.
 _Avoid_: bottleneck
