@@ -8,6 +8,10 @@ The master's thesis describing SBOM Lens, a tool that turns a CycloneDX SBOM int
 The directed graph built from one SBOM: components are nodes, and an edge runs from a consumer to the component it depends on.
 _Avoid_: dependency tree (it is not a tree), SBOM graph (when meaning the model rather than the rendering)
 
+**Production dependency graph**:
+The dependency graph restricted to what ships: runtime dependencies only, excluding development and test dependencies.
+_Avoid_: full graph, lockfile graph
+
 **Root**:
 The component the SBOM describes (the application itself); a node with no consumers. Where an SBOM has several, analyses treat them as children of one virtual root.
 
@@ -28,6 +32,10 @@ _Avoid_: spread, propagation (when meaning this static measure)
 **Chokepoint**:
 A component with a non-empty dominated set — a single point that the application cannot route around.
 _Avoid_: bottleneck
+
+**Severity band**:
+One of CRITICAL, HIGH, MEDIUM, LOW, or UNKNOWN for a vulnerability; a component takes the highest band among its vulnerabilities. UNKNOWN means no CVSS v3 score or advisory severity was available. It is not LOW.
+_Avoid_: severity level, risk level
 
 ## Structural risk
 

@@ -8,10 +8,11 @@ Agreed order of work (2026-09-30). Decisions behind each step are in `docs/adr/`
    - [x] Fixes from `docs/research/backend-metrics.md`: spectral eigensolver sign (`eigsh`, "LA"), epidemic threshold 1/λ₁ in the response, seeded small-world sampling, `topDependedOn` by in-degree, self-loops stripped at graph build, graph-analysis caches cleared on edit/delete, version conflicts keyed by (group, name), power law by MLE with x_min (`powerlaw`), bow-tie reported only when the core has more than one node.
    - [ ] Verify in the running app (frontend untested: no Node on the dev machine), then commit in `sbom-lens`.
    - [ ] Retake Figure 5.1 with the four severity colours.
-2. **`sbom-lens-eval` pipeline** (ADR 0003)
-   - [ ] New repo: committed project list (~30 each for npm, PyPI and Maven, at 2–3-year-old release tags), cdxgen SBOM generation, and filters (≥1 known vulnerability, ≤1000 components).
-   - [ ] Vulnerability lookup through `../sbom-lens/src/utils/vulnerabilityAPI.js` under Node (NVD + OSV + GHSA; needs an NVD API key and a GitHub token), with results posted to the backend.
-   - [ ] Dump every metric plus timings to JSON/CSV; record the vulnerability-query date and the pinned `sbom-lens` commit.
+2. **`sbom-lens-eval` pipeline** (ADR 0003, ADR 0004)
+   - [ ] `sbom-lens` prep: severity from the CVSS v3 vector, else the GHSA label, else UNKNOWN; remove the unused NVD/GHSA code; correct Ch2/Ch5 to OSV only.
+   - [ ] New local repo `../sbom-lens-eval`: Python orchestrator driving the running backend over HTTP, plus a Node script that imports the real `vulnerabilityAPI.js` from a pinned `sbom-lens` checkout; cdxgen pinned.
+   - [ ] Candidates: GitHub search (JavaScript/TypeScript, by stars) → latest release tag ≤ 2024-03-31 → committed lockfile, not a workspaces monorepo → cdxgen `--required-only` → ≥1 known vulnerability, ≤1000 components. Stop at ~90 accepted; every rejection logged in `skipped.csv`.
+   - [ ] Outputs: one JSON per SBOM (all metrics, `/impact` for each vulnerable node, timings), a combined CSV, the query date and the pinned commits.
    - [ ] Push to GitHub; Zenodo snapshot at submission.
 3. **Thesis writing** (can overlap with step 2)
    - [ ] Ch6: component, cluster and whole-graph scales (see the chapter's TODO comment).
