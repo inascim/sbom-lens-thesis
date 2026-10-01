@@ -17,17 +17,16 @@ SBOM Lens follows a three-layer architecture that separates user interaction, gr
 
 The principal motivation for this separation is analytical correctness. Running graph algorithms in the browser would require reimplementing the backend graph logic in JavaScript, duplicating code that would be harder to test and audit. By keeping computation server-side, the algorithms described in \autoref{cp:vuln-analysis} and \autoref{cp:network-sci} can be verified against known graph fixtures independently of the frontend.
 
-Persistence is deliberately in-memory for this thesis scope. \texttt{SBOMStore} holds up to \texttt{MAX\_SBOMS} SBOM records and their corresponding \texttt{nx.DiGraph} objects in process memory; the default limit is ten, configurable via environment variable. Graph state resets on server restart. This design is intentional: the system is evaluated against a fixed research dataset, and the absence of a database removes an entire class of schema-migration and query-optimisation concerns that would distract from the analytical contribution. Persistent storage is identified as future work.
+Persistence is deliberately in-memory for this thesis scope. \texttt{SBOMStore} holds up to \texttt{MAX\_SBOMS} SBOM records and their corresponding \texttt{nx.DiGraph} objects in process memory; the default limit is fifty, configurable via environment variable. Graph state resets on server restart. This design is intentional: the system is evaluated against a fixed research dataset, and the absence of a database removes an entire class of schema-migration and query-optimisation concerns that would distract from the analytical contribution. Persistent storage is identified as future work.
 
-The architecture also includes modules not evaluated in this thesis --- a Topology Optimiser and a Comparison/Delta analysis view --- which are shown in \autoref{fig:architecture} with a visual distinction to be transparent about the system's full scope while clearly delineating what this thesis covers. All seven registered FastAPI routers are listed for architectural completeness.
+The architecture also includes modules not evaluated in this thesis --- a Topology Optimiser and a Comparison/Delta analysis view --- which are shown in \autoref{fig:architecture} with a visual distinction to be transparent about the system's full scope while clearly delineating what this thesis covers. All eight registered FastAPI routers are listed for architectural completeness.
 
-% TODO: the architecture figure was missing from the PDF (rendered as "Figure ??"). Add it here.
-% \begin{figure}[!htpb]
-%     \centering
-%     \includegraphics[width=\textwidth]{Figures/Chapter4/architecture.pdf}
-%     \caption[SBOM Lens system architecture]{SBOM Lens three-layer architecture. Modules outside the thesis scope (Topology Optimiser, Comparison/Delta) are visually distinguished.}
-%     \label{fig:architecture}
-% \end{figure}
+\begin{figure}[!htpb]
+    \centering
+    \includegraphics[width=\textwidth]{Figures/Chapter4/architecture.pdf}
+    \caption[SBOM Lens system architecture]{SBOM Lens three-layer architecture. Vulnerabilities are looked up in the browser and stored by the backend; the backend's audit queries the package registries. Modules outside the thesis scope (Topology Optimiser, SBOM Comparison and the delta router) are drawn dashed.}
+    \label{fig:architecture}
+\end{figure}
 
 
 \subsection{Frontend Layer}
@@ -43,9 +42,9 @@ The data layer is controlled by a compile-time constant \texttt{DATA\_SOURCE} de
 \subsection{Backend Layer}
 \label{sec:backend}
 
-The backend is a FastAPI application defined in \texttt{main.py} with seven routers registered at startup: \texttt{sboms}, \texttt{vulnerabilities}, \texttt{metrics}, \texttt{impact}, \texttt{audit}, \texttt{graph\_analysis}, and \texttt{delta}. Registration order is significant: the \texttt{delta} and \texttt{graph\_analysis} routers are registered before \texttt{sboms} to prevent FastAPI's wildcard path parameter \texttt{\{sbom\_id\}} from greedily intercepting fixed paths such as \texttt{/sboms/compare}.
+The backend is a FastAPI application defined in \texttt{main.py} with eight routers registered at startup: \texttt{sboms}, \texttt{vulnerabilities}, \texttt{metrics}, \texttt{impact}, \texttt{audit}, \texttt{graph\_analysis}, \texttt{analysis} (the analysis report of several SBOMs), and \texttt{delta}. Registration order is significant: the \texttt{delta} and \texttt{graph\_analysis} routers are registered before \texttt{sboms} to prevent FastAPI's wildcard path parameter \texttt{\{sbom\_id\}} from greedily intercepting fixed paths such as \texttt{/sboms/compare}.
 
-The graph engine is NetworkX's \texttt{DiGraph} class. All structural algorithms operate directly on the stored \texttt{DiGraph} object: these include articulation-point detection, k-core decomposition, HITS centrality, Louvain community detection, spectral radius estimation, and the epidemic propagation model, all described in \autoref{cp:network-sci}. This avoids any serialisation step between storage and computation: the router receives a Python object reference, runs the algorithm, and returns results without intermediate conversion.
+The graph engine is NetworkX's \texttt{DiGraph} class. All structural algorithms operate directly on the stored \texttt{DiGraph} object: these include articulation-point detection, k-core decomposition, HITS centrality, Louvain community detection, and the spectral analysis (spectral radius, epidemic threshold and spectral exposure score), all described in \autoref{cp:network-sci}. This avoids any serialisation step between storage and computation: the router receives a Python object reference, runs the algorithm, and returns results without intermediate conversion.
 
 Several routers maintain per-SBOM result caches at the module level. Community detection and k-core results are expensive to recompute for large graphs; caching ensures that repeated requests for the same SBOM complete in constant time. All caches are explicitly invalidated when an SBOM is updated or deleted, guaranteeing consistency between the stored graph and any cached analytical results.
 

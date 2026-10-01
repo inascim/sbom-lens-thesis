@@ -7,7 +7,7 @@ Agreed order of work (2026-09-30). Decisions behind each step are in `docs/adr/`
    - [x] Root-based dominance in `backend/routers/impact.py`, using a virtual root when there are several (ADR 0002). Then resolve the REVIEW comment in Section 5.5.3.
    - [x] Fixes from `docs/research/backend-metrics.md`: spectral eigensolver sign (`eigsh`, "LA"), epidemic threshold 1/λ₁ in the response, seeded small-world sampling, `topDependedOn` by in-degree, self-loops stripped at graph build, graph-analysis caches cleared on edit/delete, version conflicts keyed by (group, name), power law by MLE with x_min (`powerlaw`), bow-tie reported only when the core has more than one node.
    - [x] Verify in the running app, then commit in `sbom-lens`.
-   - [ ] Retake Figure 5.1 with the four severity colours.
+   - [x] Retake Figure 5.1 with the four severity colours.
 2. **`sbom-lens-eval` pipeline** (ADR 0003, ADR 0004)
    - [x] `sbom-lens` prep: severity from the CVSS v3 vector, else the GHSA label, else UNKNOWN; remove the unused NVD/GHSA code; correct Ch2/Ch5 to OSV only.
    - [x] New local repo `../sbom-lens-eval`: Python orchestrator driving the running backend over HTTP, plus a Node script that imports the real `vulnerabilityAPI.js` from a pinned `sbom-lens` checkout; cdxgen pinned.
@@ -23,3 +23,12 @@ Agreed order of work (2026-09-30). Decisions behind each step are in `docs/adr/`
 4. **After data collection**
    - [x] Ch7: RQ1–RQ3 results and the performance paragraph.
    - [x] Ch8: summary of findings.
+
+## Open items (as of 2026-10-01)
+
+- Abstract (EN/PT): add one sentence of evaluation results? Waiting on the author's decision. Proposed text: "On 90 real npm applications, structural and severity rankings of vulnerable components proved unrelated, and three-quarters of vulnerable components were transitive-only."
+- Push `sbom-lens-eval` to GitHub and archive it on Zenodo at submission; Chapter 7 (Reproducibility) says it is published.
+- References: all DOIs checked against Crossref (2026-10-01). Zimmermann 2019 and Hagberg 2008 have no DOI; Ch3 quotes only what was verified.
+- Build: `latexmk` in the repo root (no `make` installed). minted's Python helper prints a harmless TypeError under Python 3.14; there are no code listings.
+- Figure 4.1 is generated from `Figures/Chapter4/architecture.mmd` (see the README there).
+

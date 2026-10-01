@@ -1,0 +1,40 @@
+%%{init: {"theme": "neutral", "flowchart": {"curve": "basis", "nodeSpacing": 18, "rankSpacing": 28, "padding": 6}, "themeVariables": {"fontFamily": "Helvetica, Arial, sans-serif", "fontSize": "20px"}}}%%
+%% SBOM Lens system architecture (Figure 4.1). Render: see README.md in this folder.
+flowchart LR
+    analyst(["Security<br/>analyst"])
+
+    subgraph FE["Frontend · React SPA (browser)"]
+        direction TB
+        views["<b>Views</b> (Material-UI)<br/>SBOM Library · SBOM Graph<br/>Vulnerabilities<br/>Risk Assessment<br/>Graph Analysis"]
+        cy["<b>GraphVisualizer</b><br/>Cytoscape.js canvas<br/>and overlays"]
+        vapi["<b>vulnerabilityAPI.js</b><br/>OSV lookup<br/>CVSS v3.1 scoring"]
+        oos_fe["Optimizer<br/>SBOM Comparison"]:::oos
+    end
+
+    api{{"REST API<br/>JSON over HTTP"}}
+
+    subgraph BE["Backend · FastAPI service"]
+        direction TB
+        routers["<b>Routers</b><br/>sboms · vulnerabilities<br/>metrics · impact · audit<br/>graph_analysis · analysis"]
+        nx["<b>Graph engine</b><br/>NetworkX · SciPy<br/>powerlaw"]
+        stores[("<b>In-memory stores</b><br/>SBOMStore: records<br/>and DiGraphs<br/>VulnStore: findings")]
+        delta["delta router"]:::oos
+    end
+
+    osv[("OSV<br/>api.osv.dev")]:::ext
+    reg[("npm / PyPI<br/>registries")]:::ext
+
+    analyst --> views
+    views --- cy
+    views --- vapi
+    views <--> api
+    api <--> routers
+    routers --> nx
+    routers --> stores
+    vapi -- "query by purl" --> osv
+    routers -- "maintenance<br/>check" --> reg
+
+    classDef oos fill:#f9fafb,stroke:#9ca3af,stroke-dasharray:5 4,color:#6b7280
+    classDef ext fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
+    style FE fill:#ffffff,stroke:#334155,stroke-width:1.5px
+    style BE fill:#ffffff,stroke:#334155,stroke-width:1.5px
