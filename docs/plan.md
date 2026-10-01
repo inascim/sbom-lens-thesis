@@ -26,7 +26,7 @@ Agreed order of work (2026-09-30). Decisions behind each step are in `docs/adr/`
 
 ## Open items (as of 2026-10-01)
 
-- Abstract (EN/PT): add one sentence of evaluation results? Waiting on the author's decision. Proposed text: "On 90 real npm applications, structural and severity rankings of vulnerable components proved unrelated, and three-quarters of vulnerable components were transitive-only."
+- [x] Abstract (EN/PT): evaluation sentence added.
 - Push `sbom-lens-eval` to GitHub and archive it on Zenodo at submission; Chapter 7 (Reproducibility) says it is published.
 - References: all DOIs checked against Crossref (2026-10-01). Zimmermann 2019 and Hagberg 2008 have no DOI; Ch3 quotes only what was verified.
 - Build: `latexmk` in the repo root (no `make` installed). minted's Python helper prints a harmless TypeError under Python 3.14; there are no code listings.
