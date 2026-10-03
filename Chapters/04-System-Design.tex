@@ -186,6 +186,6 @@ The SBOM Graph supports the following core interactions, designed to enable focu
 
 \textbf{SBOM selection.} A selector component lists all SBOMs currently stored in \texttt{SBOMStore}. Selecting an SBOM converts the stored CycloneDX data to Cytoscape node and edge objects and loads them into the Cytoscape instance.
 
-\textbf{Impact analysis entry point.} Right-clicking a node opens a context menu that includes an impact analysis option, which fetches blast-radius and dominator-tree data from the backend. The analytical meaning of the resulting overlay is described in \autoref{cp:vuln-analysis}; the interaction gesture is documented here as part of the interaction model.
+\textbf{Impact analysis entry point.} Right-clicking a node opens a context menu that includes an impact analysis option, which selects the node for the blast-radius and dominator-tree overlays of the Analysis menu. The analytical meaning of the resulting overlay is described in \autoref{cp:vuln-analysis}; the interaction gesture is documented here as part of the interaction model.
 
 Dynamic graph editing features --- adding new nodes, repositioning nodes by dragging, and creating edges via the \texttt{cytoscape-edgehandles} plugin --- are implemented in the application but are outside the scope of this thesis. These are graph construction utilities, not structural risk assessment features, and are not evaluated in this work.
