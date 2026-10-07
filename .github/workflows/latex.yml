@@ -10,12 +10,14 @@ on:
       - 'Assets/**'
   pull_request:
     paths-ignore:
-        - '**/README.md'
-        - '**/LICENSE'
-        - '**/.gitignore'
-        - '**/.gitattributes'
-        - '**/Makefile'
-        - 'Assets/**'
+      - '**/README.md'
+      - '**/LICENSE'
+      - '**/.gitignore'
+      - '**/.gitattributes'
+      - '**/Makefile'
+      - 'Assets/**'
+permissions:
+  contents: read
 jobs:
   build_latex:
     runs-on: ubuntu-latest
@@ -25,9 +27,16 @@ jobs:
       - name: LaTeX Document Compilation
         uses: xu-cheng/latex-action@v3
         with:
-          root_file: IPLeiriaMain.tex
+          root_file: ULOMain.tex
           latexmk_use_xelatex: true
           latexmk_shell_escape: true
           extra_fonts: |
             ./Configurations/Fonts/*.ttf
             ./Configurations/Fonts/*.otf
+      - name: Upload compiled PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: ULOMain-pdf
+          path: ULOMain.pdf
+          if-no-files-found: error
+          retention-days: 90
