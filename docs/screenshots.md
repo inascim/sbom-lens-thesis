@@ -10,7 +10,7 @@ All shots use the `code-server` SBOM and the latest UI, with the light theme and
 
 | ☐ | Save as | Why | What to capture |
 |---|---|---|---|
-| ☐ | `Figures/Chapter4/node-details.png` | New Component section in the Details panel (sbom-lens `03f5fb8`) | **No overlay active**, tap `basic-ftp`. The Component section (name, version, PURL, type, bom-ref, severity) is open at the top. With the severity overlay on, tapping a vulnerable node opens the Vulnerabilities page instead |
+| ☐ | `Figures/Chapter4/node-details.png` | New Component section in the Details panel (sbom-lens `03f5fb8`) | Tap `basic-ftp` (any overlay). The Component section (name, version, PURL, type, bom-ref, severity) is open at the top. A single tap no longer leaves the page; a double tap opens the Vulnerabilities page |
 | ☐ | `Figures/Chapter5/vuln-overlay.png` | The old shot had the Java sample imported on top of code-server (194 nodes / 276 edges) | Reload `code-server` (status bar 181 nodes, 263 edges), only *Vulnerable components* active |
 | ☐ | `Figures/Chapter5/vulnerabilities-page.png` | Component column was empty (fixed in `ec33079`) | Vulnerabilities page, `code-server`, with the Component column filled in |
 | ☐ | `Figures/Chapter6/risk-assessment.png` | Namespace concentration was empty (fixed in `018cd20`); the page was also scrolled, hiding its title | Risk Assessment page scrolled to the top, with namespace concentration filled in |

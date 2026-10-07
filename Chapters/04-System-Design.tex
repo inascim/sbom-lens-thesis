@@ -204,13 +204,13 @@ All three layouts share common configuration options: \texttt{fit: true} (zoom t
 
 The SBOM Graph supports the following core interactions, designed to enable focused exploration of the dependency structure.
 
-\textbf{Node selection.} Tapping a node selects it; a blue border is applied to the highlighted node. Tapping the canvas background deselects all nodes.
+\textbf{Node selection.} Tapping a node selects it; a blue border is applied to the highlighted node. Tapping the canvas background deselects all nodes. Double-tapping a vulnerable node opens its records on the Vulnerabilities page.
 
 \textbf{Details panel.} A collapsible panel to the right of the canvas groups the information about the loaded SBOM into expandable sections. The first, \emph{Component}, is open by default and shows the stored attributes of the node last tapped --- \texttt{name}, \texttt{version}, \texttt{purl}, \texttt{type}, and \texttt{bom-ref} --- together with the worst severity band and the number of findings of that component, if it has any; tapping the canvas background clears it. These attributes give the analyst the metadata needed to cross-reference the component with external vulnerability databases. \emph{Graph metrics} gives the number of nodes and edges, the average out-degree, and the three most depended-on components. \emph{Vulnerabilities} lists the vulnerable components of the SBOM by worst severity; each expands to its advisories and can be highlighted on the graph. After an impact analysis, a \emph{Dependency paths} section is added (\autoref{sec:blast-radius}). \autoref{fig:node-details} shows the panel with a component selected.
 
 \begin{figure}[!htpb]
     \centering
-    \screenshot[0.8\textwidth]{Figures/Chapter4/node-details}{SBOM Graph page, \texttt{code-server} SBOM, no overlay active (with the severity overlay on, tapping a vulnerable node opens the Vulnerabilities page instead), \texttt{basic-ftp} tapped: the Details panel with the Component section (name, version, PURL, type, bom-ref, severity) open at the top. Light theme, same window size as the other screenshots.}
+    \screenshot[0.8\textwidth]{Figures/Chapter4/node-details}{SBOM Graph page, \texttt{code-server} SBOM, \texttt{basic-ftp} tapped: the Details panel with the Component section (name, version, PURL, type, bom-ref, severity) open at the top. Light theme, same window size as the other screenshots.}
     \caption[The Details panel]{The Details panel for the \texttt{code-server} SBOM with \texttt{basic-ftp} selected: its attributes in the Component section, followed by the graph metrics and the vulnerable components of the SBOM.}
     \label{fig:node-details}
 \end{figure}
