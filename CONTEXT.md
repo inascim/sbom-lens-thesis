@@ -18,7 +18,7 @@ The component the SBOM describes (the application itself); a node with no consum
 ## Vulnerability analysis
 
 **Blast radius**:
-The set of components that depend on a given component, directly or transitively — everything that inherits its vulnerability.
+A given component together with every component that depends on it, directly or transitively — everything that inherits its vulnerability.
 _Avoid_: impact set, affected set
 
 **Dominated set**:
