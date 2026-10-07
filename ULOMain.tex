@@ -25,6 +25,21 @@
 %%% Document Metadata %%%
 \input{Metadata/Metadata}
 
+%%% Application Screenshots %%%
+% \screenshot[width]{Figures/<path> without .png}{what to capture}
+% Shows the PNG once it exists; until then, a framed box saying what to capture.
+\newcommand{\screenshot}[3][\textwidth]{%
+    \IfFileExists{#2.png}{%
+        \includegraphics[width=#1]{#2.png}%
+    }{%
+        \fbox{\parbox[c][0.45\linewidth][c]{\dimexpr #1 - 2\fboxsep - 2\fboxrule\relax}{%
+            \centering\small
+            \textbf{SCREENSHOT PENDING:} \texttt{#2.png}\\[0.6em]
+            \parbox{0.85\linewidth}{\centering #3}%
+        }}%
+    }%
+}
+
 %%% Loading of Glossary and Acronyms %%%
 \makeglossaries
 
