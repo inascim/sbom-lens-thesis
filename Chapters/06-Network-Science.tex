@@ -73,11 +73,11 @@ Cluster-scale measures describe groups of components. They answer questions that
 \subsection{Louvain Communities}
 \label{sec:ns-communities}
 
-SBOM Lens partitions the dependency graph into communities with the Louvain algorithm (\autoref{sec:community-detection}) \citep{Blondel2008}, calling \texttt{louvain\_communities(}\(G_u\)\texttt{, seed=42)} with NetworkX's defaults of unit edge weights and resolution one. Louvain visits nodes in a random order, and the fixed seed makes the partition reproducible for a given graph and library version. \texttt{GET /sboms/\{id\}/communities} returns the number of communities, the community of every component, and the size of every community; the frontend can colour the graph by community or collapse each community into a single node. \autoref{fig:communities} shows the colouring for the \texttt{code-server} SBOM.
+SBOM Lens partitions the dependency graph into communities with the Louvain algorithm (\autoref{sec:community-detection}) \citep{Blondel2008}, calling \texttt{louvain\_communities(}\(G_u\)\texttt{, seed=42)} with NetworkX's defaults of unit edge weights and resolution one. Louvain visits nodes in a random order, and the fixed seed makes the partition reproducible for a given graph and library version. \texttt{GET /sboms/\{id\}/communities} returns the number of communities, the community of every component, and the size of every community; the frontend colours the graph by community, as \autoref{fig:communities} shows for the \texttt{code-server} SBOM.
 
 \begin{figure}[!htpb]
     \centering
-    \screenshot{Figures/Chapter6/communities}{SBOM Graph page, \texttt{code-server} SBOM, force-directed layout, only the \emph{Community (Colors)} overlay active. Light theme.}
+    \screenshot{Figures/Chapter6/communities}{SBOM Graph page, \texttt{code-server} SBOM, force-directed layout, only the \emph{Community (Colors)} overlay active. Light theme, same window size as the other screenshots.}
     \caption[Louvain communities]{Louvain communities of the \texttt{code-server} dependency graph, one colour per community.}
     \label{fig:communities}
 \end{figure}
@@ -112,8 +112,8 @@ Whole-graph measures summarise the dependency graph of a project in a single num
 
 \begin{figure}[!htpb]
     \centering
-    \screenshot{Figures/Chapter6/risk-assessment}{Risk Assessment page with the \texttt{code-server} SBOM selected, showing the audit results: cycles, version conflicts and namespace concentration. Light theme.}
-    \caption[The Risk Assessment page]{The Risk Assessment page for the \texttt{code-server} SBOM, showing the whole-graph audit.}
+    \screenshot{Figures/Chapter6/risk-assessment}{Risk Assessment page with the \texttt{code-server} SBOM selected, scrolled to the top so the page title is visible: entropy, dependency cycles, diamond dependencies (version conflicts), namespace concentration (now filled in) and unmaintained packages. Light theme, same window size as the other screenshots.}
+    \caption[The Risk Assessment page]{The Risk Assessment page for the \texttt{code-server} SBOM, showing the whole-graph audit: degree entropy, dependency cycles, version conflicts (labelled \emph{Diamond Dependencies} in the interface), namespace concentration, and unmaintained packages.}
     \label{fig:risk-assessment}
 \end{figure}
 
