@@ -6,16 +6,13 @@ All shots use the `code-server` SBOM and the latest UI, with the light theme and
 
 **Done** (in the thesis now): `Chapter4/app-overview.png` (also used as the radial layout), `Chapter4/layout-tree.png` and `layout-force.png` (cropped by Claude to `*-canvas.png`), `Chapter5/blast-radius.png` (`basic-ftp`), `Chapter5/dominated-set.png` (`express`), `Chapter6/communities.png`.
 
+**Also done:** `Chapter4/node-details.png`, which is also used as the severity-overlay figure in §5.5.1, so no separate `vuln-overlay.png` is needed. And `Chapter5/vulnerabilities-page.png`.
+
 **To retake:**
 
 | ☐ | Save as | Why | What to capture |
 |---|---|---|---|
-| ☐ | `Figures/Chapter4/node-details.png` | New Component section in the Details panel (sbom-lens `03f5fb8`) | Tap `basic-ftp` (any overlay). The Component section (name, version, PURL, type, bom-ref, severity) is open at the top. A single tap no longer leaves the page; a double tap opens the Vulnerabilities page |
-| ☐ | `Figures/Chapter5/vuln-overlay.png` | The old shot had the Java sample imported on top of code-server (194 nodes / 276 edges) | Reload `code-server` (status bar 181 nodes, 263 edges), only *Vulnerable components* active |
-| ☐ | `Figures/Chapter5/vulnerabilities-page.png` | Component column was empty (fixed in `ec33079`) | Vulnerabilities page, `code-server`, with the Component column filled in |
-| ☐ | `Figures/Chapter6/risk-assessment.png` | Namespace concentration was empty (fixed in `018cd20`); the page was also scrolled, hiding its title | Risk Assessment page scrolled to the top, with namespace concentration filled in |
-
-Restart the backend before retaking `risk-assessment.png`, so that it runs the namespace fix.
+| ☐ | `Figures/Chapter6/risk-assessment.png` | Namespace concentration was empty (fixed in sbom-lens `018cd20`); the cards now have fixed heights with lists scrolling inside them (`45ba23f`) | Restart the backend and reload the frontend. Take the Risk Assessment page scrolled to the top, with namespace concentration filled in |
 
 Optional: the full-window overlay shots print fairly small at 0.8 of the text width, because the side navigation takes a third of each image. If you want them larger, crop out the side navigation, or ask Claude to crop them.
 
