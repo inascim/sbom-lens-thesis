@@ -8,11 +8,7 @@ All shots use the `code-server` SBOM and the latest UI, with the light theme and
 
 **Also done:** `Chapter4/node-details.png`, which is also used as the severity-overlay figure in §5.5.1, so no separate `vuln-overlay.png` is needed. And `Chapter5/vulnerabilities-page.png`.
 
-**To retake:**
-
-| ☐ | Save as | Why | What to capture |
-|---|---|---|---|
-| ☐ | `Figures/Chapter6/risk-assessment.png` | Namespace concentration was empty (fixed in sbom-lens `018cd20`); the cards now have fixed heights with lists scrolling inside them (`45ba23f`) | Restart the backend and reload the frontend. Take the Risk Assessment page scrolled to the top, with namespace concentration filled in |
+All screenshots are in the thesis; none are pending. `Chapter6/risk-assessment.png` was retaken after the namespace and card-height fixes.
 
 Optional: the full-window overlay shots print fairly small at 0.8 of the text width, because the side navigation takes a third of each image. If you want them larger, crop out the side navigation, or ask Claude to crop them.
 
