@@ -17,6 +17,15 @@
 
 % Configure citation style to include both author and year prominently.
 \ExecuteBibliographyOptions{maxcitenames=1}
+% Undated web pages are cited as "n.d."; their access date (urldate) is shown only as
+% "visited on", never used as the citation year.
+\DeclareLabeldate{%
+    \field{date}
+    \field{year}
+    \field{eventdate}
+    \field{origdate}
+    \literal{nodate}
+}
 \DeclareFieldFormat{citehyperref}{%
     \DeclareFieldAlias{bibhyperref}{noformat}%
     \bibhyperref{#1}%

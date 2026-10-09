@@ -1,5 +1,5 @@
 % Recommended: Use JabRef as your reference manager.
-% Rebuilt from the citation keys in IPLeiriaMainV2.pdf. Entries marked "note = {TODO ...}" need verification.
+% Rebuilt from the citation keys in IPLeiriaMainV2.pdf; every entry has since been checked against its source.
 
 % --- Books and papers ---------------------------------------------------------
 
@@ -9,15 +9,6 @@
     edition   = {4},
     publisher = {MIT Press},
     year      = {2022},
-}
-
-@Book{Cormen2009,
-    author    = {Cormen, Thomas H. and Leiserson, Charles E. and Rivest, Ronald L. and Stein, Clifford},
-    title     = {Introduction to Algorithms},
-    edition   = {3},
-    publisher = {MIT Press},
-    year      = {2009},
-    note      = {TODO: Chapter 1 cites this edition, Chapter 2 cites CLRS4th; keep one},
 }
 
 @Book{Barabasi2016,
@@ -106,10 +97,15 @@
     doi       = {10.1109/SP46215.2023.10179304},
 }
 
-@Misc{SBOMlandscape2025,
-    title = {{TODO}: 2025 SBOM tooling landscape study},
-    year  = {2025},
-    note  = {TODO: the PDF cites this key but the source could not be recovered; replace with the real reference},
+@InProceedings{Garcia2025,
+    author    = {Garcia, Derek and Mirakhorli, Mehdi and Dillon, Schuyler and Laporte, Kevin and Morrison, Matthew and Lu, Henry and Koscinski, Viktoria and Enoch, Christopher and Fazelnia, Mohamad and Chen, Roger},
+    title     = {A Landscape Study of Open-Source Tools for Software Bill of Materials ({SBOM}) and Supply Chain Security},
+    booktitle = {2025 IEEE/ACM 3rd International Workshop on Software Vulnerability Management (SVM)},
+    address   = {Ottawa, ON, Canada},
+    publisher = {IEEE},
+    year      = {2025},
+    pages     = {37--45},
+    doi       = {10.1109/SVM66695.2025.00010},
 }
 
 % --- Reports, regulation and standards ------------------------------------------
@@ -185,28 +181,28 @@
     author = {{Forum of Incident Response and Security Teams}},
     title  = {Exploit Prediction Scoring System ({EPSS})},
     url    = {https://www.first.org/epss/},
-    note   = {TODO: add year / access date},
+    urldate   = {2026-10-09},
 }
 
 @Misc{OWASPCycloneDX,
     author = {{OWASP Foundation}},
     title  = {{CycloneDX} Bill of Materials Standard ({ECMA-424})},
     url    = {https://cyclonedx.org/specification/overview/},
-    note   = {TODO: add year / access date},
+    urldate   = {2026-10-09},
 }
 
 @Misc{PurlSpec,
     author = {{Package-URL Project}},
     title  = {Package-{URL} (purl) Specification ({ECMA-427})},
     url    = {https://github.com/package-url/purl-spec},
-    note   = {TODO: add year / access date},
+    urldate   = {2026-10-09},
 }
 
 @Misc{SLSA,
     author = {{Open Source Security Foundation}},
     title  = {Supply-chain Levels for Software Artifacts ({SLSA})},
     url    = {https://slsa.dev},
-    note   = {TODO: add year / access date},
+    urldate   = {2026-10-09},
 }
 
 % --- Vulnerability databases and advisories ------------------------------------
@@ -215,28 +211,28 @@
     author = {{The MITRE Corporation}},
     title  = {Common Vulnerabilities and Exposures ({CVE})},
     url    = {https://www.cve.org},
-    note   = {TODO: add access date},
+    urldate   = {2026-10-09},
 }
 
 @Misc{NVD,
     author = {{National Institute of Standards and Technology}},
     title  = {National Vulnerability Database},
     url    = {https://nvd.nist.gov},
-    note   = {TODO: add access date},
+    urldate   = {2026-10-09},
 }
 
 @Misc{OSV,
     author = {{Open Source Security Foundation}},
     title  = {{OSV}: Open Source Vulnerabilities},
     url    = {https://osv.dev},
-    note   = {TODO: add access date},
+    urldate   = {2026-10-09},
 }
 
 @Misc{GHSA,
     author = {{GitHub}},
     title  = {{GitHub} Advisory Database},
     url    = {https://github.com/advisories},
-    note   = {TODO: add access date},
+    urldate   = {2026-10-09},
 }
 
 @Misc{NIST_CVE_2021_44228,
@@ -266,21 +262,21 @@
     author = {{OWASP Foundation}},
     title  = {{OWASP} Dependency-Track},
     url    = {https://dependencytrack.org},
-    note   = {TODO: add access date},
+    urldate   = {2026-10-09},
 }
 
 @Misc{Grype,
     author = {{Anchore}},
     title  = {Grype: A Vulnerability Scanner for Container Images and Filesystems},
     url    = {https://github.com/anchore/grype},
-    note   = {TODO: add access date},
+    urldate   = {2026-10-09},
 }
 
 @Misc{Syft,
     author = {{Anchore}},
     title  = {Syft: {CLI} Tool and Library for Generating a Software Bill of Materials},
     url    = {https://github.com/anchore/syft},
-    note   = {TODO: add access date},
+    urldate   = {2026-10-09},
 }
 
 @Article{Clauset2009,
