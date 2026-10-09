@@ -32,7 +32,14 @@ The architecture also includes modules not evaluated in this thesis --- a Topolo
 \subsection{Frontend Layer}
 \label{sec:frontend}
 
-The frontend is a React single-page application styled with the Material-UI (MUI) component library. It exposes three primary views: the SBOM Graph (the central visualisation canvas), the Vulnerability Dashboard (aggregated CVE data and remediation status), and the Graph Analysis panel (network-science metric display). A persistent side navigation bar connects the views and hosts the SBOM selection control.
+The frontend is a React single-page application styled with the Material-UI (MUI) component library. A persistent side navigation bar connects five pages within the scope of this thesis: the Dashboard (the SBOM library and its vulnerability totals), the SBOM Graph (the central visualisation canvas), Vulnerabilities (the stored vulnerability records and their remediation status), Risk Assessment (the whole-graph audit of \autoref{sec:structural-risk}), and Graph Analysis (degree and depth distributions). The navigation also lists an Optimizer, an SBOM Comparison view and a Fix Priorities page, which are outside the scope of this thesis. \autoref{fig:app-overview} shows the application with the SBOM Graph page open.
+
+\begin{figure}[!htpb]
+    \centering
+    \screenshot{Figures/Chapter4/app-overview}{Full browser window: side navigation and the SBOM Graph page with the \texttt{code-server} SBOM loaded, default radial layout, no overlay active. Light theme, same window size as the other screenshots.}
+    \caption[The SBOM Lens interface]{The SBOM Lens interface with the \texttt{code-server} SBOM loaded on the SBOM Graph page. The side navigation on the left links the pages of the application; the graph is drawn in the default radial layout, and the Details panel on the right summarises the graph and its vulnerabilities.}
+    \label{fig:app-overview}
+\end{figure}
 
 Graph rendering is delegated entirely to Cytoscape.js through a \texttt{GraphVisualizer} React component that holds the Cytoscape instance in a \texttt{useRef} hook. This architectural choice is deliberate: Cytoscape.js manages the HTML5 canvas directly and responds to user gestures with sub-millisecond latency. Routing all canvas operations through React's virtual-DOM reconciler would introduce unnecessary re-render overhead for every pan, zoom, or node drag event. React manages application state --- which SBOM is loaded, which analysis mode is active --- while Cytoscape manages the visual representation.
 
@@ -156,7 +163,7 @@ Cytoscape.js is initialised imperatively inside the \texttt{GraphVisualizer} Rea
 
 The default visual encoding uses a consistent style throughout the application. Component nodes are rendered as circular shapes (\(28 \times 28\) pixels) filled with Material-UI's info blue, with the component name displayed as a label below the node. The root component --- the project whose dependencies are being analysed --- is distinguished by a green fill and a 2-pixel border, making it immediately identifiable as the anchor of the dependency tree. Dependency edges are rendered as Bézier curves with triangle arrowheads at the target end, indicating the direction of dependency. Edges carry the static label \texttt{depends\_on} with auto-rotate enabled so the label follows the curve.
 
-Overlay CSS classes are pre-defined in the Cytoscape stylesheet and applied programmatically when an analysis mode is activated. The pre-defined overlay classes are: \texttt{.articulation-point} (red), \texttt{.blast-radius} (purple), \texttt{.dominator-tree} (cyan), one class per severity band --- \texttt{.vuln-critical} (red), \texttt{.vuln-high} (orange), \texttt{.vuln-medium} (yellow), and \texttt{.vuln-low} (green-yellow) ---, \texttt{.diamond-node} (green), and \texttt{.hits-active} (node size and colour scaled from HITS score attributes). A \texttt{.dimmed} class reduces opacity to 15\,\% to grey out nodes and edges that are not part of the current selection or overlay. The analytical meaning of each overlay class is defined in \autoref{cp:vuln-analysis} and \autoref{cp:network-sci}; this section establishes the visual layer only.
+Overlay CSS classes are pre-defined in the Cytoscape stylesheet and applied programmatically when an analysis mode is activated. The pre-defined overlay classes are: \texttt{.articulation-point} (red), \texttt{.blast-radius} (purple), \texttt{.dominator-tree} (cyan), one class per severity band --- \texttt{.vuln-critical} (red), \texttt{.vuln-high} (orange), \texttt{.vuln-medium} (yellow), and \texttt{.vuln-low} (green-yellow) ---, \texttt{.diamond-node} (green), and \texttt{.hits-active} (node size and colour scaled from HITS score attributes). The analytical meaning of each overlay class is defined in \autoref{cp:vuln-analysis} and \autoref{cp:network-sci}; this section establishes the visual layer only.
 
 
 \subsection{Layout Algorithms}
@@ -170,7 +177,26 @@ The \textbf{Radial Layout} (Cytoscape name: \texttt{concentric}) places nodes in
 
 The \textbf{Force-Directed Layout} (Cytoscape name: \texttt{cose}) simulates a physical spring system to distribute nodes so that connected components cluster together organically without imposing a hierarchical structure. This layout is particularly effective for revealing natural groupings in large, densely connected SBOMs.
 
-All three layouts share common configuration options: \texttt{fit: true} (zoom to fit the graph on screen), a padding of 150 pixels, overlap avoidance, and an animated transition of 600\,ms. Layout changes are applied imperatively by re-running the Cytoscape algorithm on the existing node and edge data without issuing a new request to the backend.
+All three layouts share common configuration options: \texttt{fit: true} (zoom to fit the graph on screen), a padding of 150 pixels, overlap avoidance, and an animated transition of 600\,ms. Layout changes are applied imperatively by re-running the Cytoscape algorithm on the existing node and edge data without issuing a new request to the backend. \autoref{fig:layouts} shows the \texttt{code-server} SBOM in the tree and force-directed layouts; the radial layout of the same SBOM is the one in \autoref{fig:app-overview}.
+
+\begin{figure}[!htpb]
+    \centering
+    \begin{subfigure}[b]{0.49\textwidth}
+        \centering
+        \screenshot[\linewidth]{Figures/Chapter4/layout-tree-canvas}{Graph canvas only, \texttt{code-server}, Tree layout.}
+        \caption{Tree}
+        \label{fig:layout-tree}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.49\textwidth}
+        \centering
+        \screenshot[\linewidth]{Figures/Chapter4/layout-force-canvas}{Graph canvas only, \texttt{code-server}, Force-directed layout.}
+        \caption{Force-directed}
+        \label{fig:layout-force}
+    \end{subfigure}
+    \caption[The tree and force-directed layouts]{The \texttt{code-server} dependency graph (181 components) in two of the three layouts of SBOM Lens. The tree layout shows dependency depth as levels below the root; the force-directed layout groups densely connected components. The radial layout is shown in \autoref{fig:app-overview}.}
+    \label{fig:layouts}
+\end{figure}
 
 
 \subsection{Core Interaction Model}
@@ -178,9 +204,16 @@ All three layouts share common configuration options: \texttt{fit: true} (zoom t
 
 The SBOM Graph supports the following core interactions, designed to enable focused exploration of the dependency structure.
 
-\textbf{Node selection.} Tapping a node selects it; a blue border is applied to the highlighted node. Tapping the canvas background deselects all nodes.
+\textbf{Node selection.} Tapping a node selects it; a blue border is applied to the highlighted node. Tapping the canvas background deselects all nodes. Double-tapping a vulnerable node opens its records on the Vulnerabilities page.
 
-\textbf{Node inspection.} Selecting a node opens a sidebar panel displaying the node's stored attributes: \texttt{name}, \texttt{version}, \texttt{purl}, \texttt{type}, and \texttt{bom-ref}. This panel gives the analyst the metadata needed to cross-reference the selected component with external vulnerability databases.
+\textbf{Details panel.} A collapsible panel to the right of the canvas groups the information about the loaded SBOM into expandable sections. The first, \emph{Component}, is open by default and shows the stored attributes of the node last tapped --- \texttt{name}, \texttt{version}, \texttt{purl}, \texttt{type}, and \texttt{bom-ref} --- together with the worst severity band and the number of findings of that component, if it has any; tapping the canvas background clears it. These attributes give the analyst the metadata needed to cross-reference the component with external vulnerability databases. \emph{Graph metrics} gives the number of nodes and edges, the average out-degree, and the three most depended-on components. \emph{Vulnerabilities} lists the vulnerable components of the SBOM by worst severity; each expands to its advisories and can be highlighted on the graph. After an impact analysis, a \emph{Dependency paths} section is added (\autoref{sec:blast-radius}). \autoref{fig:node-details} shows the panel with a component selected.
+
+\begin{figure}[!htpb]
+    \centering
+    \screenshot[0.8\textwidth]{Figures/Chapter4/node-details}{SBOM Graph page, \texttt{code-server} SBOM, severity overlay (\emph{Vulnerable components}) active, \texttt{basic-ftp} tapped: the Component section open at the top of the Details panel. Light theme, same window size as the other screenshots.}
+    \caption[The Details panel and the severity overlay]{The \texttt{code-server} SBOM with the severity overlay of \autoref{sec:severity-colour} active and \texttt{basic-ftp} selected. Vulnerable components are coloured by their worst severity band: red for \textsc{critical}, orange for \textsc{high}, yellow for \textsc{medium}, and green-yellow for \textsc{low}. The Details panel shows the attributes of \texttt{basic-ftp} in the Component section, followed by the graph metrics and the vulnerable components of the SBOM.}
+    \label{fig:node-details}
+\end{figure}
 
 \textbf{Zoom and fit.} The current zoom level is tracked in React component state and displayed in the toolbar. A fit-to-view button resets the viewport so the entire graph is visible, which is useful after navigating to a deeply nested subgraph.
 
