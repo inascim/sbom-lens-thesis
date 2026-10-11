@@ -18,6 +18,13 @@ Tell Claude if any retaken shot differs from its caption or from the text that c
 
 ## 3. Other open items
 
+- [ ] **Publish and archive the two repositories (Ch8 review, decision D1-B).** Ch7 and Ch8 say the data and code are published, and that is only true once you have done this.
+  1. Add a licence to `sbom-lens-eval`, for example MIT for the code and CC BY 4.0 for the data. `sbom-lens` has the dashboard template's MIT licence; you may add your own copyright line to it.
+  2. Make `inascim/sbom-lens` and `inascim/sbom-lens-eval` public on GitHub. Claude scanned both histories on 2026-10-11 and found no tokens or keys; the real `.env` files are git-ignored.
+  3. Sign in to zenodo.org with GitHub and switch both repositories on under GitHub integration.
+  4. Create a GitHub release in each repository: `sbom-lens` at commit `28113e7` (the version the thesis describes) and `sbom-lens-eval` at its current `master`. Zenodo then mints one DOI per release.
+  5. Send Claude the two DOIs. Claude adds them to the bibliography and cites them in Ch7 (Reproducibility) and Ch8 (Contributions, RO4).
+
 - [ ] **Push `master`** (`git push origin master`). It holds the Ch5 review commit, so it has to be pushed before you open the `ulo-template` PR. Otherwise that commit will appear inside the PR.
 - [ ] **Review and merge `ulo-template`** on GitHub: the ULO template switch plus these screenshot slots.
 - [ ] **AI declaration.** Read the suggestions in the comment block in `Matter/04-AI.tex`. They cover ULO's policy reference, the uses of AI the current sentence leaves out, a draft replacement, and how to add ULO's AI appendix. Decide whether to adopt them.
