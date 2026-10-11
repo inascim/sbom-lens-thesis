@@ -47,7 +47,7 @@ The directed dependency graph is constructed directly from these fields. The ver
 
 The \texttt{purl} field serves a second purpose beyond node identification. A Package URL encodes the package ecosystem, namespace, name, and version in a single string --- for example, \texttt{pkg:npm/lodash@4.17.21} or \texttt{pkg:pypi/requests@2.31.0} --- enabling cross-database vulnerability matching. OSV uses purl natively; NVD uses CPE but can be cross-referenced via purl. The purl-to-database matching pipeline is described in \autoref{cp:vuln-analysis}. The purl specification is standardised as ECMA-427 \citep{PurlSpec}.
 
-Fields not consumed by SBOM Lens in the current implementation include the \texttt{vulnerabilities[]} array (VEX documents), \texttt{services[]}, \texttt{compositions[]}, and \texttt{externalReferences[]}. Vulnerability data is sourced directly from NVD, OSV, and GitHub Security Advisories rather than from embedded VEX data; this design decision and its trade-offs are discussed in \autoref{cp:conclusion}.
+Fields not consumed by SBOM Lens in the current implementation include the \texttt{vulnerabilities[]} array (VEX documents), \texttt{services[]}, \texttt{compositions[]}, and \texttt{externalReferences[]}. Vulnerability data is obtained from OSV rather than from embedded VEX data; this design decision and its trade-offs are discussed in \autoref{cp:conclusion}.
 
 
 \section{Software Supply Chain Security}
